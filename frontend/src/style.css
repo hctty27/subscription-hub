@@ -1,0 +1,67 @@
+:root {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #192536;
+  background: #f7f8fa;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; }
+.app-shell { display: flex; min-height: 100vh; }
+.sidebar { width: 238px; flex-shrink: 0; background: #fff; border-right: 1px solid #e7eaf0; display: flex; flex-direction: column; padding: 28px 18px; }
+.brand { display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 760; letter-spacing: -.4px; padding: 0 8px; white-space: nowrap; }
+.brand-mark { width: 32px; height: 32px; display: grid; place-items: center; background: #3b5bdb; color: white; border-radius: 10px; font-weight: 750; }
+.nav-label { font-size: 11px; color: #8994a4; margin: 46px 12px 10px; letter-spacing: 1px; }
+.nav-menu { display: grid; gap: 5px; }
+.nav-link { min-height: 42px; padding: 0 12px; display: flex; align-items: center; justify-content: space-between; border-radius: 9px; font-size: 13px; }
+.nav-link.active { color: #3154d4; background: #eff2ff; font-weight: 650; }
+.nav-link.disabled { color: #8a94a3; cursor: default; }
+.nav-link small { font-size: 10px; color: #b3bac5; }
+.sidebar-footer { margin-top: auto; color: #a0a8b4; padding: 15px 12px 0; font-size: 11px; }
+.main { width: 100%; max-width: 1500px; padding: 54px clamp(22px, 5vw, 80px); }
+.page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+.eyebrow { font-size: 12px; letter-spacing: .6px; color: #8d9aae; margin-bottom: 12px; }
+h1 { margin: 0; font-size: 30px; letter-spacing: -1px; }
+.page-header p { margin: 10px 0 0; color: #778395; font-size: 13px; }
+.preview-tag { border: 1px solid #dae1ef; background: #fff; border-radius: 50px; padding: 8px 12px; font-size: 11px; color: #718199; white-space: nowrap; }
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 38px; }
+.metric, .panel { background: #fff; border: 1px solid #e7eaf0; border-radius: 14px; }
+.metric { padding: 22px 24px; display: flex; flex-direction: column; gap: 7px; }
+.metric span { color: #738095; font-size: 13px; }
+.metric strong { font-size: 31px; line-height: 1.3; font-weight: 650; }
+.metric small { font-size: 11px; color: #a1aab8; }
+.content-grid { display: grid; grid-template-columns: 1.55fr 1fr; gap: 16px; margin-top: 18px; }
+.panel { min-height: 310px; padding: 23px 25px; }
+.panel-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.panel-heading h2 { font-size: 15px; margin: 0; }
+.panel-heading > span { font-size: 11px; color: #9aa5b5; }
+.empty-state { padding: 36px 8px 14px; text-align: center; }
+.empty-illustration { background: #f1f4ff; color: #5671dc; font-size: 26px; width: 52px; height: 52px; display: grid; place-items: center; margin: 0 auto 18px; border-radius: 14px; }
+.empty-state h3 { font-size: 14px; font-weight: 600; margin: 0 0 8px; }
+.empty-state p { max-width: 290px; margin: 0 auto; font-size: 12px; color: #93a0b1; line-height: 1.7; }
+.system-detail { display: grid; gap: 16px; margin-top: 34px; }
+.system-detail div { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; }
+.system-detail span { color: #8792a4; }
+.system-detail strong { font-size: 12px; font-weight: 550; }
+.system-detail code { font-size: 11px; color: #53657c; overflow-wrap: anywhere; }
+.status { padding: 5px 9px; border-radius: 12px; background: #f1f3f6; }
+.status.online { color: #10834d; background: #eaf8ef; }
+.status.offline { color: #b84035; background: #fff1ef; }
+.outline-button { margin-top: 28px; background: white; border: 1px solid #dbe1ea; border-radius: 8px; padding: 9px 12px; cursor: pointer; color: #526177; font-size: 12px; }
+.outline-button:hover { border-color: #aab9dd; color: #3154d4; }
+.outline-button:focus-visible { outline: 2px solid #3154d4; outline-offset: 2px; }
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .content-grid { grid-template-columns: 1fr; }
+  .main { padding: 32px 20px; }
+}
+@media (max-width: 560px) {
+  .metrics { grid-template-columns: 1fr; gap: 10px; margin-top: 26px; }
+  .page-header { align-items: center; }
+  .page-header h1 { font-size: 25px; }
+  .metric { padding: 17px 20px; }
+  .panel { min-height: 255px; }
+}
