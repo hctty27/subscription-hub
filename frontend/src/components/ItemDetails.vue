@@ -30,7 +30,7 @@ interface Payment {
   notes: string
 }
 
-const props = defineProps<{ item: Item; categories: Category[] }>()
+const props = defineProps<{ item: Item; categories: Category[]; startWithPayment?: boolean }>()
 const emit = defineEmits<{
   (event: 'close'): void
   (event: 'edit', item: Item): void
@@ -115,6 +115,10 @@ function beginPayment(): void {
   paymentNotes.value = ''
   showPaymentForm.value = true
 }
+watch(() => props.startWithPayment, enabled => {
+  if (enabled) beginPayment()
+}, { immediate: true })
+
 async function savePayment(): Promise<void> {
   if (saving.value) return
   saving.value = true
