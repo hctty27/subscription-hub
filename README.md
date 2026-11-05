@@ -39,7 +39,7 @@ For public deployment use the dedicated [production Compose and Cloudflare Tunne
 ### Docker Compose (recommended)
 
 ```bash
-printf 'ADMIN_PASSWORD=replace-with-a-strong-random-password\\n' > .env
+printf 'ADMIN_PASSWORD=replace-with-a-strong-random-password\n' > .env
 # .env is ignored by Git
 sh scripts/migrate-data-volumes.sh development
 docker compose up --build
