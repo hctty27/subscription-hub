@@ -14,7 +14,7 @@ Manage recurring services, VPS subscriptions, domains, and other upcoming renewa
 - Month-end clamping and leap-year handling
 - Basic statuses: active, paused, canceled
 - Responsive Vue interface for browsing, creating, editing and deleting records
-- Data persistence through a Docker volume
+- Data persistence through project-local bind mounts, with isolated development and production directories
 - Actual payment ledger (CRUD) and six-month currency-separated expense reports
 - Idempotent in-app renewal reminders, configurable 0–30 days ahead
 - Single-admin Argon2id login, HTTP-only sessions, protected API
@@ -41,10 +41,11 @@ For public deployment use the dedicated [production Compose and Cloudflare Tunne
 ```bash
 printf 'ADMIN_PASSWORD=replace-with-a-strong-random-password\\n' > .env
 # .env is ignored by Git
+sh scripts/migrate-data-volumes.sh development
 docker compose up --build
 ```
 
-Open http://localhost:5173. The SQLite database is stored in the named Docker volume `subscription_data`. `docker compose down` keeps it, but `docker compose down -v` permanently deletes the volume.
+Open http://localhost:5173. Docker development data and backups live in `./data-dev/`, while the separate production stack uses `./data/`. Before upgrading from an old named Docker volume, run `sh scripts/migrate-data-volumes.sh development` or `sh scripts/migrate-data-volumes.sh production` respectively, **before** starting the updated Compose. The migration script does not delete legacy volumes. See [deployment guide](docs/DEPLOYMENT.md).
 
 ### Local development
 
