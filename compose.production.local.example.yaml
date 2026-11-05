@@ -1,0 +1,10 @@
+# 复制为 compose.production.local.yaml 后再按服务器需要调整。
+# 该文件只作示例；本地文件已被 Git 忽略。
+# 敏感信息请放在 .env.production，勿写进 Compose 配置。
+
+services:
+  api:
+    mem_limit: 768m
+
+  web:
+    mem_limit: 256m
