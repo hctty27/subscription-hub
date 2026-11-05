@@ -63,9 +63,9 @@ npm run dev
 
 ## 安全说明
 
-本项目提供**两套独立的 Compose**：`compose.yaml` 仅用于开发，`compose.production.yaml` 使用静态前端 + Caddy HTTPS，并在 Docker 内网访问 Go API。
+本项目提供**两套独立的 Compose**：`compose.yaml` 仅用于开发，`compose.production.yaml` 使用静态前端 + Nginx，配合 Cloudflare Tunnel 提供公网 HTTPS，并在 Docker 内网访问 Go API。
 
-生产配置已加入自动 TLS、强制 Secure Cookie、只读容器根目录、数据库快照与 Restic 异地加密备份脚本。**配置具备生产部署基础，但正式面向公网使用前仍需完成真实域名/TLS 验证、密码恢复流程、异地恢复演练和安全检查。**
+生产配置支持 Cloudflare Tunnel HTTPS、强制 Secure Cookie、只读容器根目录、数据库快照与 Restic 异地加密备份脚本。**配置具备生产部署基础，但正式面向公网使用前仍需完成真实域名/Tunnel/HTTPS 验证、密码恢复流程、异地恢复演练和安全检查。**
 
 详细步骤：[正式部署与异地备份](docs/DEPLOYMENT.md)。
 

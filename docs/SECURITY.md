@@ -35,4 +35,4 @@
 
 开发 Compose 仍然使用 Vite，不可公开。
 
-生产配置 `compose.production.yaml` 则使用 Caddy 运行静态资源与自动 HTTPS，Go API 不映射宿主机端口，Secure Cookie 强制开启；对外部署前仍需真实域名证书验证、异地备份恢复演练、密码恢复流程、漏洞扫描与审计。详见 [部署指南](DEPLOYMENT.md)。
+生产配置 `compose.production.yaml` 使用 Nginx 托管静态资源并代理 Docker 内网 Go API；Nginx 默认仅映射到宿主机 `127.0.0.1:18080`。公网 HTTPS 通过 Cloudflare Tunnel 实现，`SESSION_SECURE=true` 强制开启。禁止将 HTTP_BIND 配为公网监听；对外部署前仍需域名/Tunnel/HTTPS 验证、异地备份恢复演练、密码恢复流程、漏洞扫描与审计。详见 [部署指南](DEPLOYMENT.md)。

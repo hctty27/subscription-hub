@@ -13,6 +13,10 @@ for i in $(seq 1 60); do
 done
 
 curl -fsS "$base/" | grep -q 'Subscription Hub'
+curl -fsS "$base/a/deep/spa/route" | grep -q 'Subscription Hub'
+curl -fsSI "$base/" | grep -qi '^x-content-type-options: nosniff'
+code="$(curl -s -o /dev/null -w '%{http_code}' "$base/assets/absent.js")"
+test "$code" = "404"
 curl -fsS "$base/api/v1/health" | grep -q '"status":"ok"'
 
 code="$(curl -s -o /dev/null -w '%{http_code}' "$base/api/v1/items")"
