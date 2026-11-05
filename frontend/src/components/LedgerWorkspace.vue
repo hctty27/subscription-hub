@@ -42,8 +42,7 @@ interface Notice {
   created_at: string
 }
 
-const props = defineProps<{ page: Page; initialPaymentItemId?: number | null }>()
-const emit = defineEmits<{ (event: 'payment-intent-consumed'): void }>()
+const props = defineProps<{ page: Page }>()
 const items = ref<Item[]>([])
 const payments = ref<Payment[]>([])
 const rules = ref<Rule[]>([])
@@ -104,15 +103,6 @@ async function load() {
   try {
     const catalog = await api<{ items: Item[] }>('/items?limit=500')
     items.value = catalog.items
-    if (props.page === 'payments' && props.initialPaymentItemId != null) {
-      const item = items.value.find(entry => entry.id === props.initialPaymentItemId)
-      if (item) {
-        resetForm()
-        form.value.item_id = item.id
-        choosePaymentItem()
-      }
-      emit('payment-intent-consumed')
-    }
     if (props.page === 'payments') {
       const q = paidMonth.value ? '&month=' + paidMonth.value : ''
       payments.value = (await api<{ items: Payment[] }>('/payments?limit=500' + q)).items
