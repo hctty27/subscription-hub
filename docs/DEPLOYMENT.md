@@ -3,10 +3,8 @@
 本项目使用两套独立的 Compose：
 
 - `compose.yaml`：仅用于本地开发，前端是 Vite。
-- `compose.production.yaml`：仓库跟踪的生产基础配置，构建 Vue 静态文件，由 Nginx 代理 Docker 内网的 Go API。
-- `compose.production.local.yaml`：服务器私有覆盖配置（可选，Git 忽略），专门放网络、资源限制等机器差异；不要直接改基础配置。
-- `.env.production`：服务器私有环境变量与密钥（Git 忽略）。
-- `scripts/compose-prod.sh`：生产 Compose 唯一入口，自动加载上述环境文件与可选覆盖文件，并透传 `config/up/ps/logs/--profile` 等参数。
+- `compose.production.yaml`：生产候选方案，构建 Vue 静态文件，用 Nginx 托管前端和反向代理 Docker 内网的 Go API，并可选启动 Cloudflare Tunnel。
+- `compose.production.user.yaml`（可选）：你在服务器上自行维护的**完整 Compose 文件**，被 Git 忽略；不会自动叠加，也不会被部署脚本自动选中。
 - `restic`：可选的加密异地备份 profile。
 
 > 公网 HTTPS 由 Cloudflare 提供；Nginx 只处理 Docker 内网 HTTP。后端 `api:8080` 不映射宿主机端口。该配置仍需实际公网联调、安全审计和恢复演练。
@@ -17,12 +15,8 @@
 
 ```bash
 cd /home/project/subscription-hub
-# 初次安装时才复制；已有私有配置不要覆盖
-test -f .env.production || cp .env.production.example .env.production
+cp .env.production.example .env.production
 chmod 600 .env.production
-
-# 仅在需要服务器个性化 Compose 时创建
-# cp compose.production.local.example.yaml compose.production.local.yaml
 ```
 
 编辑 `.env.production`：
@@ -35,44 +29,45 @@ chmod 600 .env.production
 
 `APP_DOMAIN`、`HTTPS_BIND` 等旧 Caddy 设置已不再使用。Cloudflare 的公网域名由 Tunnel 路由配置负责。
 
-### 公共配置与本地配置如何协作
+## 自行指定生产 Compose 文件
 
-默认情况下，`sh scripts/compose-prod.sh` 使用仓库的 `compose.production.yaml`；若检测到 `compose.production.local.yaml`，会把它作为第二个 `-f` 文件自动合并。**后面的文件优先，但部分列表（尤其 ports、volumes）遵循 Compose 特定合并规则，不一定是直接替换。** 先执行 `config` 确认最终结果。相对路径始终基于仓库中的第一个 Compose 文件。
-
-适合放在 `.env.production`：`HTTP_BIND`、`APP_TIMEZONE`、`CLOUDFLARE_TUNNEL_TOKEN`、通知和备份密钥；适合放在本地 YAML：特殊网络、容器资源限制等。勿把密钥写进 YAML。
-
-示例（不会更改仓库公共配置）：
-
-```yaml
-services:
-  api:
-    mem_limit: 768m
-  web:
-    mem_limit: 256m
-```
+不再使用 `scripts/compose-prod.sh` 或自动合并 `compose.production.local.yaml`。默认继续使用仓库公共文件 `compose.production.yaml`；如需自己管理配置，复制一份完整文件后修改：
 
 ```bash
-sh scripts/compose-prod.sh config --quiet
-# 以下输出可能包含密钥，请勿复制到日志或公开 Issue
-sh scripts/compose-prod.sh config
+cd /home/project/subscription-hub
+cp compose.production.yaml compose.production.user.yaml
+# 编辑 compose.production.user.yaml；保持 name、服务名、镜像名称、持久化目录等与现有容器一致。
 ```
 
-需要通过其他环境文件测试时，可使用 `SUBSCRIPTION_ENV_FILE=.env.production.example sh scripts/compose-prod.sh config --quiet`。不要在生产环境使用示例密码启动服务。
+**显式指定文件，不进行任何自动覆盖/合并：**
 
-### 已经在服务器上修改过公共 Compose 的迁移方法
+```bash
+docker compose --env-file .env.production -f compose.production.user.yaml config --quiet
+docker compose --env-file .env.production -f compose.production.user.yaml up -d --build
+```
 
-1. **先备份当前完整文件**：`cp -p compose.production.yaml "$HOME/subhub-compose.production.before-migration.yaml"`，并用 `git status --short` 检查是否存在本地或暂存修改。
-2. 对照备份，将服务器特有配置分别迁入 `.env.production` 和 `compose.production.local.yaml`。不要直接把整个旧 Compose 拷贝为 local 文件，否则会把仓库中的旧服务配置重复覆盖回来。
-3. 确认备份无误、私有配置保存完成，再清理旧文件的 Git 本地改动，执行 `git pull --ff-only`。**不要未经核对直接运行 `git restore` 或 `git reset --hard`。** 若 Git 提示冲突，先手动处理。
-4. 更新后执行 `sh scripts/compose-prod.sh config --quiet` 并检查 `sh scripts/compose-prod.sh config` 的挂载、端口和网络，再进行部署；旧数据库位于 `data/`，本改造不迁移数据。
+如需让备份与旧命名卷迁移脚本使用同一文件，请在**执行脚本的 shell** 中显式设置：
+
+```bash
+export COMPOSE_FILE=compose.production.user.yaml
+sh scripts/backup-offsite.sh
+# 仅在首次或旧卷迁移时使用，不能重复迁移已有数据目录
+# sh scripts/migrate-data-volumes.sh production
+```
+
+未设置 `COMPOSE_FILE` 时，备份及生产迁移脚本默认使用公共 `compose.production.yaml`。`COMPOSE_FILE` 应通过 shell 导出；不要仅在 `.env.production` 中配置它并期待脚本自动使用。Docker Compose 原生支持 `-f` 和 `COMPOSE_FILE` 两种显式选择方式。
+
+**从旧的本地编辑版迁移时**：先将当前 `compose.production.yaml` 备份到仓库之外（例如 `$HOME/`），提取服务器私有设置到 `compose.production.user.yaml`，核对 `docker compose ... config` 的输出后再处理 Git 工作区改动。不要直接执行 `git restore` / `git reset --hard` 覆盖未保存的配置。
+
+自定义文件是完整副本，**不会自动继承未来公共 Compose 的更新**；后续新增服务或安全调整需手动同步。注意保持 `name: subscription-hub-prod` 及服务、容器名称一致，避免创建第二套容器或误操作其他项目。
 
 ## 二、部署 Nginx 和 API
 
 首次安装或从旧命名卷升级时，**先按第四节执行数据目录准备/迁移**，再运行：
 
 ```bash
-sh scripts/compose-prod.sh up -d --build
-sh scripts/compose-prod.sh ps
+docker compose --env-file .env.production -f compose.production.yaml up -d --build
+docker compose --env-file .env.production -f compose.production.yaml ps
 curl -fsS http://127.0.0.1:18080/api/v1/health
 ```
 
@@ -90,9 +85,9 @@ curl -fsS http://127.0.0.1:18080/api/v1/health
 4. 启动：
 
    ```bash
-   sh scripts/compose-prod.sh \
+   docker compose --env-file .env.production -f compose.production.yaml \
      --profile tunnel up -d --build
-   sh scripts/compose-prod.sh \
+   docker compose --env-file .env.production -f compose.production.yaml \
      --profile tunnel logs -f --tail 100 tunnel
    ```
 
@@ -100,7 +95,7 @@ curl -fsS http://127.0.0.1:18080/api/v1/health
 
 ### 方式 B：已在宿主机安装 cloudflared
 
-不启动 `tunnel` profile，使用 `sh scripts/compose-prod.sh up -d --build` 启动网站。
+不启动 `tunnel` profile，使用前述 `docker compose ... up -d --build` 启动网站。
 
 将 Tunnel 的 Published application Service URL 设置为 **`http://127.0.0.1:18080`**，使用宿主机现有的 cloudflared 服务。注意：宿主机上的 `localhost` 与 Docker 容器中的 `localhost` 不同。
 
@@ -127,11 +122,7 @@ curl -fsS https://你的域名/api/v1/health
 │   ├── subscription-hub.db
 │   └── backups/
 ├── compose.yaml
-├── compose.production.yaml
-├── compose.production.local.example.yaml # 跟踪的示例
-├── compose.production.local.yaml         # 服务器私有，非必需
-├── .env.production                       # 服务器私有，必需
-└── scripts/compose-prod.sh
+└── compose.production.yaml
 ```
 
 `api` 和 `backend` 的容器内数据库路径仍然是 `/data/subscription-hub.db`，备份路径是 `/data/backups`。Restic 的生产备份服务只读取 `./data`，不会触碰 `./data-dev`。
@@ -156,7 +147,7 @@ sh scripts/migrate-data-volumes.sh development
 
 脚本不会自动启动或重启服务。准备完成后，按照第二、三节的命令启动生产环境；开发环境使用 `docker compose up -d --build`。如果迁移意外中断，**不要启动新服务，也不要删除旧数据卷**；先检查目录内容，再决定如何重试。容器停机是保证 WAL 数据一致性的重要前提。
 
-`sh scripts/compose-prod.sh down -v` 不会删除项目绑定挂载目录，但**仍可能删除 Restic 等其他命名卷**；不要将其当作清理命令。由于生产数据已保存在项目目录下，宿主机磁盘损坏或误删仍会导致丢失，请务必配置异地备份。
+`docker compose down -v` 不会删除项目绑定挂载目录，但**仍可能删除 Restic 等其他命名卷**；不要将其当作清理命令。由于生产数据已保存在项目目录下，宿主机磁盘损坏或误删仍会导致丢失，请务必配置异地备份。
 
 ## 五、加密异地备份（Restic）
 
@@ -177,7 +168,7 @@ AWS_DEFAULT_REGION=auto
 初始化仓库（首次执行一次）：
 
 ```bash
-sh scripts/compose-prod.sh \
+docker compose --env-file .env.production -f compose.production.yaml \
   --profile backup run --rm --no-deps restic init
 ```
 
@@ -192,7 +183,7 @@ SUBSCRIPTION_ENV_FILE=.env.production sh scripts/backup-offsite.sh
 查看快照：
 
 ```bash
-sh scripts/compose-prod.sh \
+docker compose --env-file .env.production -f compose.production.yaml \
   --profile backup run --rm --no-deps restic snapshots
 ```
 
@@ -200,8 +191,8 @@ sh scripts/compose-prod.sh \
 
 ## 六、维护与安全
 
-- 更新前先备份；执行 `git pull --ff-only`（确认公共文件没有未处理的本地修改），再执行 `sh scripts/compose-prod.sh up -d --build`。
-- 查看日志：`sh scripts/compose-prod.sh logs -f --tail 100`。
+- 更新前先备份；更新命令与启动命令相同，使用 `up -d --build`。
+- 查看日志：`docker compose --env-file .env.production -f compose.production.yaml logs -f --tail 100`。
 - 公网只通过 Cloudflare Tunnel 访问，不将 `HTTP_BIND` 配成公网 IP 或 `0.0.0.0`。
 - 保持 API、数据库、Restic 密钥、Tunnel Token 私有；不要暴露 Docker Socket。
 - 仅修改 `ADMIN_PASSWORD` 环境变量不会重置已初始化的管理员密码。
