@@ -258,16 +258,16 @@ async function scan() {
           <button type="button" @click="paidMonth = ''; load()">全部月份</button>
           <span>最多显示 500 条</span>
         </div>
-        <div class="ledger-table-scroll">
+        <div class="ledger-table-scroll ledger-mobile-cards">
           <table class="ledger-table">
             <thead><tr><th>付款日期</th><th>项目</th><th>实付金额</th><th>备注</th><th>操作</th></tr></thead>
             <tbody>
               <tr v-for="payment in payments" :key="payment.id">
-                <td>{{ payment.paid_date }}</td>
-                <td class="ledger-strong">{{ payment.item_name }}</td>
-                <td>{{ formatAmount(payment.amount_minor, payment.currency) }}</td>
-                <td class="ledger-muted">{{ payment.notes || '—' }}</td>
-                <td><div class="ledger-actions">
+                <td data-label="付款日期">{{ payment.paid_date }}</td>
+                <td data-label="项目" class="ledger-strong">{{ payment.item_name }}</td>
+                <td data-label="实付金额">{{ formatAmount(payment.amount_minor, payment.currency) }}</td>
+                <td data-label="备注" class="ledger-muted">{{ payment.notes || '—' }}</td>
+                <td data-label="操作"><div class="ledger-actions">
                   <button type="button" @click="editPayment(payment)">编辑</button>
                   <button class="ledger-danger" type="button" @click="deletePayment(payment)">删除</button>
                 </div></td>
@@ -368,18 +368,18 @@ async function scan() {
         <div class="ledger-panel-head ledger-delivery-heading">
           <div><h2>最近发送记录</h2><p>失败任务最多自动尝试 4 次，状态与错误保存在 SQLite。</p></div>
         </div>
-        <div class="ledger-table-scroll">
+        <div class="ledger-table-scroll ledger-mobile-cards">
           <table class="ledger-table">
             <thead><tr><th>项目</th><th>渠道</th><th>状态</th><th>尝试次数</th><th>最近结果</th></tr></thead>
             <tbody>
               <tr v-for="entry in deliveryLogs" :key="entry.id">
-                <td class="ledger-strong">{{ entry.item_name }}<small class="ledger-muted"> · {{ entry.due_date }}</small></td>
-                <td>{{ entry.channel.toUpperCase() }}</td>
-                <td><span class="ledger-rule-state" :class="{ off: entry.status !== 'sent' }">{{ {
+                <td data-label="项目" class="ledger-strong">{{ entry.item_name }}<small class="ledger-muted"> · {{ entry.due_date }}</small></td>
+                <td data-label="渠道">{{ entry.channel.toUpperCase() }}</td>
+                <td data-label="状态"><span class="ledger-rule-state" :class="{ off: entry.status !== 'sent' }">{{ {
                   pending: '待发送', retry: '待重试', sent: '已发送', failed: '失败'
                 }[entry.status] }}</span></td>
-                <td>{{ entry.attempts }}</td>
-                <td class="ledger-muted">{{ entry.last_error || (entry.sent_at ? '发送成功' : '—') }}</td>
+                <td data-label="尝试次数">{{ entry.attempts }}</td>
+                <td data-label="最近结果" class="ledger-muted">{{ entry.last_error || (entry.sent_at ? '发送成功' : '—') }}</td>
               </tr>
               <tr v-if="deliveryLogs.length === 0 && !busy"><td colspan="5" class="ledger-empty">暂无外部通知记录</td></tr>
             </tbody>
