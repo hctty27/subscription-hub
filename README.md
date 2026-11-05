@@ -15,8 +15,10 @@ Manage recurring services, VPS subscriptions, domains, and other upcoming renewa
 - Basic statuses: active, paused, canceled
 - Responsive Vue interface for browsing, creating, editing and deleting records
 - Data persistence through a Docker volume
+- Actual payment ledger (CRUD) and six-month currency-separated expense reports
+- Idempotent in-app renewal reminders, configurable 0–30 days ahead
 
-**Not implemented yet:** authentication, payment transactions, automatic reminders, backups, AI, MCP. This is a **local-development preview**, not suitable for public internet access.
+**Not implemented yet:** authentication, external notification delivery (email/Bark/Telegram), refunds, currency exchange, backups, AI, MCP. This is a **local-development preview**, not suitable for public internet access.
 
 ## Technology
 
@@ -70,7 +72,7 @@ The Docker Compose backend binds to `0.0.0.0` **inside the container**, but is p
 
 ## API
 
-See [docs/API.md](docs/API.md) for request examples and response formats.
+See [docs/API.md](docs/API.md) for catalog endpoints, and [docs/FINANCE.md](docs/FINANCE.md) for payments, reports and in-app reminders.
 
 ## Roadmap
 
