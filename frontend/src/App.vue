@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import LedgerWorkspace from './components/LedgerWorkspace.vue'
+import ItemDetails from './components/ItemDetails.vue'
 
 type Kind = 'subscription' | 'resource'
 type Status = 'active' | 'paused' | 'canceled'
@@ -11,6 +12,12 @@ interface Category {
   id: number
   name: string
   color: string
+}
+
+interface ExpenseTotal {
+  currency: string
+  amount_minor: number
+  count: number
 }
 
 interface Item {
@@ -37,6 +44,10 @@ const showAdvanced = ref(false)
 const ledgerRefreshKey = ref(0)
 const categories = ref<Category[]>([])
 const items = ref<Item[]>([])
+const selectedItem = ref<Item | null>(null)
+const monthExpenses = ref<ExpenseTotal[]>([])
+const expenseError = ref('')
+const expenseLoading = ref(false)
 const busy = ref(true)
 const authenticated = ref(false)
 const authChecking = ref(true)
@@ -106,6 +117,20 @@ async function api<T>(path: string, method = 'GET', payload?: unknown): Promise<
   return data as T
 }
 
+async function loadMonthExpenses() {
+  expenseLoading.value = true
+  expenseError.value = ''
+  const month = todayString().slice(0, 7)
+  try {
+    const data = await api<{ totals: ExpenseTotal[] }>('/reports/expenses?month=' + month)
+    monthExpenses.value = data.totals
+  } catch (reason) {
+    expenseError.value = messageOf(reason)
+  } finally {
+    expenseLoading.value = false
+  }
+}
+
 async function reload() {
   busy.value = true
   try {
@@ -115,6 +140,10 @@ async function reload() {
     ])
     categories.value = categoryData.items
     items.value = itemData.items
+    if (selectedItem.value) {
+      selectedItem.value = items.value.find(item => item.id === selectedItem.value?.id) ?? null
+    }
+    await loadMonthExpenses()
     error.value = ''
   } catch (reason) {
     error.value = messageOf(reason)
@@ -216,6 +245,15 @@ function openEdit(item: Item) {
   showEditor.value = true
   showAdvanced.value = true
   error.value = ''
+}
+
+function openDetails(item: Item) {
+  selectedItem.value = item
+}
+
+function editFromDetails(item: Item) {
+  selectedItem.value = null
+  openEdit(item)
 }
 
 function recordPayment(item: Item) {
@@ -342,6 +380,8 @@ async function logout() {
     items.value = []
     categories.value = []
     page.value = 'overview'
+    selectedItem.value = null
+    monthExpenses.value = []
   } catch (reason) {
     error.value = messageOf(reason)
   }
@@ -450,6 +490,25 @@ onMounted(checkLogin)
         </div>
       </section>
 
+      <section v-if="page === 'overview'" class="panel expense-overview" aria-label="本月实际支出">
+        <div class="panel-heading">
+          <h2>本月实际支出</h2>
+          <button type="button" class="expense-link" @click="navigate('reports')">查看统计</button>
+        </div>
+        <p class="expense-subtitle">根据已登记的付款汇总，不包含未来预计账单。</p>
+        <p v-if="expenseLoading" class="expense-message">正在读取本月账单…</p>
+        <p v-else-if="expenseError" class="expense-message expense-error">加载失败：{{ expenseError }} <button type="button" @click="loadMonthExpenses">重试</button></p>
+        <p v-else-if="monthExpenses.length === 0" class="expense-message">本月暂无付款记录，可以从项目详情快速登记。</p>
+        <div v-else class="expense-totals">
+          <div v-for="total in monthExpenses" :key="total.currency" class="expense-total">
+            <span>{{ total.currency }}</span>
+            <strong>{{ formatAmount(total.amount_minor, total.currency) }}</strong>
+            <small>{{ total.count }} 笔付款</small>
+          </div>
+        </div>
+        <p v-if="monthExpenses.length > 1" class="expense-note">不同币种分开计算，不做未经换算的金额合计。</p>
+      </section>
+
       <section v-if="page === 'overview'" class="content-grid">
         <article class="panel">
           <div class="panel-heading">
@@ -466,7 +525,7 @@ onMounted(checkLogin)
             <div v-for="item in upcomingSorted" :key="item.id" class="due-row">
               <div class="due-icon">{{ item.kind === 'subscription' ? 'S' : 'R' }}</div>
               <div class="due-info">
-                <strong>{{ item.name }}</strong>
+                <button type="button" class="item-name-button" @click="openDetails(item)">{{ item.name }}</button>
                 <span>{{ item.next_due_date }} · {{ periodLabel(item) }}</span>
               </div>
               <div class="due-right">
@@ -514,7 +573,7 @@ onMounted(checkLogin)
             </thead>
             <tbody>
               <tr v-for="item in filtered" :key="item.id">
-                <td class="cell-name">{{ item.name }}</td>
+                <td class="cell-name"><button type="button" class="item-name-button" @click="openDetails(item)">{{ item.name }}</button></td>
                 <td>
                   <span v-if="categoryFor(item.category_id)" class="category-chip">
                     <i :style="{ background: categoryFor(item.category_id)?.color }"></i>
@@ -547,7 +606,7 @@ onMounted(checkLogin)
           <div v-for="item in filtered" :key="item.id" class="mobile-item-card">
             <div class="mobile-item-top">
               <div class="mobile-item-title">
-                <strong>{{ item.name }}</strong>
+                <button type="button" class="item-name-button" @click="openDetails(item)">{{ item.name }}</button>
                 <span v-if="categoryFor(item.category_id)" class="category-chip">
                   <i :style="{ background: categoryFor(item.category_id)?.color }"></i>
                   {{ categoryFor(item.category_id)?.name }}
@@ -614,6 +673,10 @@ onMounted(checkLogin)
       <button type="button" :class="{ active: page === 'payments' || page === 'reports' }" @click="navigate('payments')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h16v18l-4-2-4 2-4-2-4 2z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>账单</button>
       <button type="button" :class="{ active: page === 'categories' || page === 'reminders' }" @click="navigate('categories')"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06-2.12 2.12-.06-.06A1.7 1.7 0 0 0 15.75 19l-.15.06V22H8.4v-2.94L8.25 19a1.7 1.7 0 0 0-1.87.34l-.06.06L4.2 17.28l.06-.06A1.7 1.7 0 0 0 4.6 15l-.06-.15H2v-5.7h2.54L4.6 9a1.7 1.7 0 0 0-.34-1.87L4.2 7.07l2.12-2.12.06.06A1.7 1.7 0 0 0 8.25 5l.15-.06V2h7.2v2.94l.15.06a1.7 1.7 0 0 0 1.87-.34l.06-.06 2.12 2.12-.06.06A1.7 1.7 0 0 0 19.4 9l.06.15H22v5.7h-2.54z"/></svg>设置</button>
     </nav>
+
+    <ItemDetails v-if="selectedItem" :item="selectedItem" :categories="categories"
+      @close="selectedItem = null" @edit="editFromDetails"
+      @payment-created="loadMonthExpenses" />
 
     <div v-if="showEditor" class="modal-backdrop" @click.self="showEditor = false">
       <form class="modal" role="dialog" aria-modal="true" :aria-label="editingID === null ? '新增记录' : '编辑记录'" @submit.prevent="saveItem">
