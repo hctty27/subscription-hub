@@ -91,10 +91,15 @@ func TestSettlingCycleMarksItsReminderRead(t *testing.T){
 	before:=request(t,router,http.MethodGet,"/api/v1/notifications?unread=true",nil,http.StatusOK)
 	if before["unread_count"].(float64)!=1 {t.Fatalf("应生成未读提醒: %+v",before)}
 	path:="/api/v1/items/"+strconv.FormatInt(itemID,10)+"/renew"
-	request(t,router,http.MethodPost,path,map[string]any{
+	settlement:=request(t,router,http.MethodPost,path,map[string]any{
 		"due_date":due,"amount_minor":1000,"currency":"CNY",
 		"paid_date":today.Format("2006-01-02"),
 	},http.StatusCreated)
 	after:=request(t,router,http.MethodGet,"/api/v1/notifications?unread=true",nil,http.StatusOK)
 	if after["unread_count"].(float64)!=0 {t.Fatalf("已结算账期的提醒未清除: %+v",after)}
+	settlementID:=int64(settlement["id"].(float64))
+	request(t,router,http.MethodDelete,"/api/v1/items/"+strconv.FormatInt(itemID,10)+
+		"/renewals/"+strconv.FormatInt(settlementID,10),nil,http.StatusNoContent)
+	after=request(t,router,http.MethodGet,"/api/v1/notifications?unread=true",nil,http.StatusOK)
+	if after["unread_count"].(float64)!=1 {t.Fatalf("撤销后未恢复待处理账期提醒: %+v",after)}
 }
