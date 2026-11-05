@@ -23,9 +23,10 @@ ADMIN_PASSWORD=请替换成至少12字符的随机密码
 SESSION_SECURE=false
 ```
 
-然后执行：
+然后执行（旧版升级也应先迁移命名卷）：
 
 ```bash
+sh scripts/migrate-data-volumes.sh development
 docker compose up -d --build
 ```
 
@@ -59,7 +60,9 @@ npm run dev
 - 每天服务器 `APP_TIMEZONE` 的 03:00 自动备份；点击概览中的“立即备份”也可以手动执行。
 - 使用 SQLite `VACUUM INTO` 生成一致性快照并通过 `integrity_check` 校验；自动轮换只保留最近 7 份。
 - 重装或恢复前，停止应用，保留当前数据库并将备份数据库复制到 `DB_PATH`。恢复操作尚未提供网页界面。
-- Docker 数据卷 `subscription_data` 同时包含数据库和备份。**删除卷会同时丢失两者**，因此生产使用必须另存一份异地备份。
+- Docker 开发版数据保存在项目根目录 `data-dev/`，生产版保存在 `data/`；两者隔离。生产数据库是 `data/subscription-hub.db`，备份在 `data/backups/`。
+- 老版本使用的 Docker 命名卷需要在升级后、启动新 Compose 前运行 `sh scripts/migrate-data-volumes.sh production`（开发版用 `development`）安全迁移。脚本会保留原卷，不自动删除数据。
+- 数据目录不等于异地备份：仍需单独配置远端 Restic 备份。
 
 ## 安全说明
 
