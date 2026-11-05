@@ -94,7 +94,7 @@ SQLite 当前使用 `PRAGMA user_version=5`。升级会保留旧 `categories`、
 
 项目响应新增：
 
-- `next_due_date`：当前待处理的账期日期。**逾期而未续期不会自动跳过**。
+- `next_due_date`：当前待处理的账期日期。**逾期而未续期不会自动跳过**；提醒扫描对于尚未结算的逾期账期也会生成一次去重提醒。
 - `days_until`：允许为负数，表示未处理的逾期天数。
 - `renewal_completed`：仅一次性资源完成结算后为 `true`，此时无后续到期日。
 
