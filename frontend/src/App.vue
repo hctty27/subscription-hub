@@ -34,6 +34,7 @@ type ItemDraft = Omit<Item, 'id' | 'next_due_date' | 'days_until' | 'amount_mino
 const page = ref<Page>('overview')
 const pendingPaymentItemID = ref<number | null>(null)
 const showAdvanced = ref(false)
+const ledgerRefreshKey = ref(0)
 const categories = ref<Category[]>([])
 const items = ref<Item[]>([])
 const busy = ref(true)
@@ -57,6 +58,14 @@ const editingCategoryID = ref<number | null>(null)
 
 function navigate(target: Page) {
   page.value = target
+}
+
+function refreshPage() {
+  if (page.value === 'payments' || page.value === 'reports' || page.value === 'reminders') {
+    ledgerRefreshKey.value += 1
+    return
+  }
+  void reload()
 }
 
 function todayString(): string {
@@ -389,7 +398,7 @@ onMounted(checkLogin)
           <p>{{ page === 'overview' ? '即将到期与续费操作，一眼掌握。' : page === 'subscription' || page === 'resource' ? '统一管理订阅与资源。' : page === 'payments' || page === 'reports' ? '查看付款记录与费用趋势。' : '配置分类、通知和数据备份。' }}</p>
         </div>
         <div class="header-actions">
-          <button class="button secondary" @click="reload">刷新</button>
+          <button class="button secondary" @click="refreshPage">刷新</button>
           <button v-if="page === 'overview' || page === 'subscription' || page === 'resource'" class="button primary"
             @click="openCreate(page === 'resource' ? 'resource' : 'subscription')">
             + 新增{{ page === 'resource' ? '资源' : '订阅' }}
@@ -416,7 +425,7 @@ onMounted(checkLogin)
         <button type="button" :class="{ active: page === 'reminders' }" @click="navigate('reminders')">到期提醒</button>
       </nav>
       <LedgerWorkspace v-if="page === 'payments' || page === 'reports' || page === 'reminders'"
-        :key="page" :page="page" :initial-payment-item-id="pendingPaymentItemID"
+        :key="page + ':' + ledgerRefreshKey" :page="page" :initial-payment-item-id="pendingPaymentItemID"
         @payment-intent-consumed="pendingPaymentItemID = null" />
       <section v-if="page === 'overview'" class="metrics" aria-label="概览指标">
         <div class="metric">
@@ -592,6 +601,10 @@ onMounted(checkLogin)
         <p class="hint">可手动生成数据库快照。请另外备份到独立存储设备。</p>
         <button class="button secondary" type="button" @click="createBackup">立即备份</button>
         <p v-if="backupInfo" class="backup-note">{{ backupInfo }}</p>
+      </section>
+      <section v-if="page === 'categories' || page === 'reminders'" class="panel settings-account">
+        <div class="panel-heading"><h2>账号</h2></div>
+        <button class="button secondary" type="button" @click="logout">退出登录</button>
       </section>
     </main>
 
