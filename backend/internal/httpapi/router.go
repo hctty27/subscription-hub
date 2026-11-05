@@ -63,6 +63,7 @@ func NewRouter(repo *store.Store, loc *time.Location, security *auth.Service, ba
 	private.PUT("/items/:id", a.updateItem)
 	private.DELETE("/items/:id", a.deleteItem)
 	private.GET("/items/:id/renewals", a.listItemRenewals)
+	private.DELETE("/items/:id/renewals/:renewalID", a.undoItemRenewal)
 	private.POST("/items/:id/renew", a.renewItem)
 	private.GET("/payments", a.listPayments)
 	private.POST("/payments", a.createPayment)
