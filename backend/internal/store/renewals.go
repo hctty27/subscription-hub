@@ -120,6 +120,12 @@ func (s *Store) SettleRenewal(ctx context.Context, payment Payment, expectedDue 
 	if err != nil {
 		return Renewal{}, err
 	}
+	// A completed cycle no longer needs an unread reminder.
+	if _, err := tx.ExecContext(ctx, `UPDATE reminder_notifications
+		SET read_at=COALESCE(read_at,strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+		WHERE item_id=? AND due_date=?`, item.ID, due); err != nil {
+		return Renewal{}, err
+	}
 	if err := tx.Commit(); err != nil {
 		return Renewal{}, err
 	}
