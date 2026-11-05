@@ -6,7 +6,7 @@ Thumbs.db
 *.swp
 
 # Local configuration and secrets
-/compose.production.local.yaml
+/compose.production.user.yaml
 .env
 .env.*
 !.env.example
