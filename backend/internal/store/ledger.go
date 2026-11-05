@@ -76,7 +76,7 @@ func (s *Store) UpdatePayment(ctx context.Context,p Payment)(Payment,error){
 
 func (s *Store) DeletePayment(ctx context.Context,id int64)error{
 	result,err:=s.db.ExecContext(ctx,"DELETE FROM payments WHERE id=?",id)
-	if err!=nil{return err}
+	if err!=nil{return constraintError(err)}
 	n,err:=result.RowsAffected()
 	if err!=nil{return err}
 	if n==0{return ErrNotFound}
