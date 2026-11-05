@@ -32,7 +32,7 @@ Manage recurring services, VPS subscriptions, domains, and other upcoming renewa
 
 ## Deployment
 
-For public deployment use the dedicated [production Compose and HTTPS guide](docs/DEPLOYMENT.md). It builds static Vue assets and serves them through Caddy; the Go API is internal-only. An optional encrypted off-site Restic backup workflow is included. This is a production candidate requiring validation of real DNS/TLS, disaster recovery, security and provider credentials before broad public use.
+For public deployment use the dedicated [production Compose and Cloudflare Tunnel guide](docs/DEPLOYMENT.md). It builds static Vue assets and serves them through Nginx, with optional Cloudflare Tunnel for HTTPS; the Go API is internal-only. An optional encrypted off-site Restic backup workflow is included. This is a production candidate requiring validation of real DNS/TLS, disaster recovery, security and provider credentials before broad public use.
 
 ## Quick start
 
@@ -97,7 +97,7 @@ See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Security
 
-The standard `compose.yaml` frontend is a **development Vite server**: do not expose it publicly. Use `compose.production.yaml` and follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production-style static hosting, automatic HTTPS, protected API and optional encrypted off-site backup. Back up the database before upgrade or removal. Avoid storing API secrets in notes.
+The standard `compose.yaml` frontend is a **development Vite server**: do not expose it publicly. Use `compose.production.yaml` and follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production-style static Nginx hosting, Cloudflare Tunnel HTTPS, protected API and optional encrypted off-site backup. Back up the database before upgrade or removal. Avoid storing API secrets in notes.
 
 ## License
 
