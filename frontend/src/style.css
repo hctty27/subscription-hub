@@ -413,3 +413,22 @@ body { min-width: 320px; }
 @media (prefers-reduced-motion: reduce) {
   .nav-link { transition: none; }
 }
+
+
+/* V2 finishing touches for tablet and touch navigation */
+@media (min-width: 701px) and (max-width: 1100px) {
+  .category-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .mobile-bottom-nav button svg {
+    width: 22px; height: 22px;
+    stroke: currentColor; stroke-width: 1.8;
+    stroke-linecap: round; stroke-linejoin: round; fill: none;
+    flex-shrink: 0;
+  }
+  .ledger-mobile-cards .ledger-table, .ledger-mobile-cards .ledger-table tbody { display: block; width: 100%; }
+  .ledger-mobile-cards .ledger-table tr { margin-bottom: 11px; }
+  .ledger-mobile-cards .ledger-table tr:last-child { margin-bottom: 0; }
+  .ledger-mobile-cards .ledger-table td { font-size: 13px; }
+  .ledger-mobile-cards .ledger-table td::before { font-size: 12px; }
+}
