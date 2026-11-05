@@ -3,14 +3,8 @@ set -eu
 
 cd "$(dirname "$0")/.."
 
-env_file="${SUBSCRIPTION_ENV_FILE:-.env.production}"
-if [ ! -f "$env_file" ]; then
-  echo "未找到环境文件：$env_file" >&2
-  exit 1
-fi
-
 compose() {
-  docker compose --env-file "$env_file" -f compose.production.yaml "$@"
+  sh scripts/compose-prod.sh "$@"
 }
 
 echo "步骤 1/3：生成新的 SQLite 一致性快照"
