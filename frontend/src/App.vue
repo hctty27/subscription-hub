@@ -582,11 +582,11 @@ onMounted(checkLogin)
       <button type="button" @click="mobileMoreOpen = false; logout()">退出登录</button>
     </section>
     <nav class="mobile-bottom-nav" aria-label="移动端导航">
-      <button type="button" :class="{ active: page === 'overview' }" :aria-current="page === 'overview' ? 'page' : undefined" @click="navigate('overview')"><span aria-hidden="true">⌂</span>概览</button>
-      <button type="button" :class="{ active: page === 'subscription' }" :aria-current="page === 'subscription' ? 'page' : undefined" @click="navigate('subscription')"><span aria-hidden="true">▣</span>订阅</button>
-      <button type="button" :class="{ active: page === 'resource' }" :aria-current="page === 'resource' ? 'page' : undefined" @click="navigate('resource')"><span aria-hidden="true">▤</span>资源</button>
-      <button type="button" :class="{ active: page === 'payments' }" :aria-current="page === 'payments' ? 'page' : undefined" @click="navigate('payments')"><span aria-hidden="true">¥</span>付款</button>
-      <button type="button" :class="{ active: mobileMoreOpen || page === 'reports' || page === 'reminders' || page === 'categories' }" :aria-expanded="mobileMoreOpen" @click="mobileMoreOpen = !mobileMoreOpen"><span aria-hidden="true">☷</span>更多</button>
+      <button type="button" :class="{ active: page === 'overview' }" :aria-current="page === 'overview' ? 'page' : undefined" @click="navigate('overview')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 21v-8h6v8"/></svg>概览</button>
+      <button type="button" :class="{ active: page === 'subscription' }" :aria-current="page === 'subscription' ? 'page' : undefined" @click="navigate('subscription')"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9h18M7 15h5"/></svg>订阅</button>
+      <button type="button" :class="{ active: page === 'resource' }" :aria-current="page === 'resource' ? 'page' : undefined" @click="navigate('resource')"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="8" rx="2"/><rect x="3" y="13" width="18" height="8" rx="2"/><path d="M7 7h.01M7 17h.01M11 7h7M11 17h7"/></svg>资源</button>
+      <button type="button" :class="{ active: page === 'payments' }" :aria-current="page === 'payments' ? 'page' : undefined" @click="navigate('payments')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h16v18l-4-2-4 2-4-2-4 2z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>付款</button>
+      <button type="button" :class="{ active: mobileMoreOpen || page === 'reports' || page === 'reminders' || page === 'categories' }" :aria-expanded="mobileMoreOpen" @click="mobileMoreOpen = !mobileMoreOpen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>更多</button>
     </nav>
 
     <div v-if="showEditor" class="modal-backdrop" @click.self="showEditor = false">
