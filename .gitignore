@@ -33,3 +33,5 @@ npm-debug.log*
 # Runtime
 data/
 logs/
+
+!.env.production.example
