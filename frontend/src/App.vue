@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import LedgerWorkspace from './components/LedgerWorkspace.vue'
 
 type Kind = 'subscription' | 'resource'
 type Status = 'active' | 'paused' | 'canceled'
 type Period = 'none' | 'day' | 'month' | 'year'
-type Page = 'overview' | Kind | 'categories'
+type Page = 'overview' | Kind | 'categories' | 'payments' | 'reports' | 'reminders'
 
 interface Category {
   id: number
@@ -123,6 +124,9 @@ const heading = computed(() => {
   if (page.value === 'subscription') return '订阅管理'
   if (page.value === 'resource') return '资源管理'
   if (page.value === 'categories') return '分类管理'
+  if (page.value === 'payments') return '付款流水'
+  if (page.value === 'reports') return '费用统计'
+  if (page.value === 'reminders') return '提醒中心'
   return '概览'
 })
 
@@ -279,7 +283,9 @@ onMounted(reload)
         <button :class="['nav-link', { active: page === 'subscription' }]" @click="page = 'subscription'">订阅管理</button>
         <button :class="['nav-link', { active: page === 'resource' }]" @click="page = 'resource'">资源管理</button>
         <button :class="['nav-link', { active: page === 'categories' }]" @click="page = 'categories'">分类管理</button>
-        <span class="nav-link disabled">提醒中心 <small>后续版本</small></span>
+        <button :class="['nav-link', { active: page === 'payments' }]" @click="page = 'payments'">付款流水</button>
+        <button :class="['nav-link', { active: page === 'reports' }]" @click="page = 'reports'">费用统计</button>
+        <button :class="['nav-link', { active: page === 'reminders' }]" @click="page = 'reminders'">提醒中心</button>
       </nav>
       <div class="sidebar-footer">开源项目 · MIT License</div>
     </aside>
@@ -293,7 +299,7 @@ onMounted(reload)
         </div>
         <div class="header-actions">
           <button class="button secondary" @click="reload">刷新</button>
-          <button v-if="page !== 'categories'" class="button primary"
+          <button v-if="page === 'overview' || page === 'subscription' || page === 'resource'" class="button primary"
             @click="openCreate(page === 'resource' ? 'resource' : 'subscription')">
             + 新增{{ page === 'resource' ? '资源' : '订阅' }}
           </button>
@@ -305,6 +311,8 @@ onMounted(reload)
         <button class="error-close" aria-label="关闭提示" @click="error = ''">×</button>
       </div>
 
+      <LedgerWorkspace v-if="page === 'payments' || page === 'reports' || page === 'reminders'"
+        :key="page" :page="page" />
       <section v-if="page === 'overview'" class="metrics" aria-label="概览指标">
         <div class="metric">
           <span>活跃订阅</span>
@@ -360,7 +368,7 @@ onMounted(reload)
             <div><span>持久化</span><strong>SQLite</strong></div>
             <div><span>项目数量</span><strong>{{ items.length }}</strong></div>
             <div><span>分类数量</span><strong>{{ categories.length }}</strong></div>
-            <div><span>账单与提醒</span><strong>后续开发</strong></div>
+            <div><span>账单与提醒</span><strong>已提供独立页面</strong></div>
           </div>
           <p class="hint">金额不跨币种直接求和，当前仅展示配置的价格和预计到期日。</p>
         </article>
