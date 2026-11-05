@@ -25,7 +25,7 @@ services:
     expose:
       - "8080"
     volumes:
-      - subscription_data:/data
+      - ./data:/data
     read_only: true
     tmpfs:
       - /tmp
@@ -78,11 +78,10 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
     volumes:
-      - subscription_data:/backups-data:ro
+      - ./data:/backups-data:ro
       - restic_local_repository:/repo
     security_opt:
       - no-new-privileges:true
 
 volumes:
-  subscription_data:
   restic_local_repository:
