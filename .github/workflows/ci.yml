@@ -134,3 +134,44 @@ jobs:
       - name: Stop production containers
         if: always()
         run: docker compose --env-file .env.production.example -f compose.production.yaml down
+
+  data-migration:
+    runs-on: ubuntu-latest
+    env:
+      SUBSCRIPTION_ENV_FILE: .env.production.example
+    steps:
+      - uses: actions/checkout@v4
+      - name: Seed legacy named volumes
+        run: |
+          docker volume create subscription-hub-prod_subscription_data
+          docker volume create subscription-hub_subscription_data
+          docker run --rm -v subscription-hub-prod_subscription_data:/old alpine:3.22 sh -c '
+            mkdir -p /old/backups
+            printf old-prod > /old/subscription-hub.db
+            printf snapshot > /old/backups/previous.db
+            printf wal > /old/subscription-hub.db-wal
+          '
+          docker run --rm -v subscription-hub_subscription_data:/old alpine:3.22 sh -c '
+            printf old-dev > /old/subscription-hub.db
+          '
+      - name: Verify migration preserves database and backups
+        run: |
+          sh scripts/migrate-data-volumes.sh production
+          sh scripts/migrate-data-volumes.sh development
+          docker run --rm -v "$PWD/data:/check:ro" alpine:3.22 sh -c '
+            test "$(cat /check/subscription-hub.db)" = old-prod
+            test "$(cat /check/backups/previous.db)" = snapshot
+            test "$(cat /check/subscription-hub.db-wal)" = wal
+            test "$(stat -c %u /check)" = 10001
+            test "$(stat -c %u /check/subscription-hub.db)" = 10001
+          '
+          docker run --rm -v "$PWD/data-dev:/check:ro" alpine:3.22 sh -c '
+            test "$(cat /check/subscription-hub.db)" = old-dev
+            test "$(stat -c %u /check)" = 10001
+          '
+          if sh scripts/migrate-data-volumes.sh production; then
+            echo "迁移脚本没有拒绝非空数据目录" >&2
+            exit 1
+          fi
+          docker volume inspect subscription-hub-prod_subscription_data >/dev/null
+          docker volume inspect subscription-hub_subscription_data >/dev/null
