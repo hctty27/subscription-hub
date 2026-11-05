@@ -33,4 +33,6 @@
 
 ### 部署限制
 
-当前 Compose 暴露的是 Vite 开发服务器，不能直接公开。生产部署仍需要静态资源构建、HTTPS、Secure Cookie、访问控制、数据恢复演练和审计。
+开发 Compose 仍然使用 Vite，不可公开。
+
+生产配置 `compose.production.yaml` 则使用 Caddy 运行静态资源与自动 HTTPS，Go API 不映射宿主机端口，Secure Cookie 强制开启；对外部署前仍需真实域名证书验证、异地备份恢复演练、密码恢复流程、漏洞扫描与审计。详见 [部署指南](DEPLOYMENT.md)。

@@ -88,3 +88,38 @@ jobs:
       - name: Stop containers
         if: always()
         run: docker compose down
+
+  production-smoke:
+    runs-on: ubuntu-latest
+    env:
+      APP_DOMAIN: ":80"
+      ADMIN_PASSWORD: ci-prod-long-password-123
+      HTTP_BIND: "127.0.0.1:18080"
+      HTTPS_BIND: "127.0.0.1:18443"
+      RESTIC_REPOSITORY: /repo
+      RESTIC_PASSWORD: ci-restic-backup-password
+      SUBSCRIPTION_ENV_FILE: .env.production.example
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate production Compose and shell scripts
+        run: |
+          docker compose --env-file .env.production.example -f compose.production.yaml config --quiet
+          sh -n scripts/backup-offsite.sh
+          sh -n scripts/smoke-production.sh
+      - name: Build and start production containers
+        run: docker compose --env-file .env.production.example -f compose.production.yaml up -d --build
+      - name: Verify static frontend, API, login and CSRF
+        run: sh scripts/smoke-production.sh
+      - name: Verify SQLite snapshot and encrypted Restic backup
+        run: |
+          docker compose --env-file .env.production.example -f compose.production.yaml exec -T api /app/backup
+          docker compose --env-file .env.production.example -f compose.production.yaml --profile backup run --rm --no-deps restic init
+          sh scripts/backup-offsite.sh
+          docker compose --env-file .env.production.example -f compose.production.yaml --profile backup run --rm --no-deps restic snapshots --json > /tmp/restic-snapshots.json
+          grep -q 'subscription-hub' /tmp/restic-snapshots.json
+      - name: Show production logs on failure
+        if: failure()
+        run: docker compose --env-file .env.production.example -f compose.production.yaml logs --no-color
+      - name: Stop production containers
+        if: always()
+        run: docker compose --env-file .env.production.example -f compose.production.yaml down
