@@ -20,7 +20,7 @@ services:
       NOTIFY_TELEGRAM_CHAT_ID: ${NOTIFY_TELEGRAM_CHAT_ID:-}
       NOTIFY_BARK_DEVICE_KEY: ${NOTIFY_BARK_DEVICE_KEY:-}
     volumes:
-      - subscription_data:/data
+      - ./data-dev:/data
     ports:
       - "127.0.0.1:8080:8080"
     restart: unless-stopped
@@ -36,5 +36,3 @@ services:
       - backend
     restart: unless-stopped
 
-volumes:
-  subscription_data:
