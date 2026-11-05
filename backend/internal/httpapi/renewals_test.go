@@ -64,6 +64,14 @@ func TestRenewalEndpointSettlesPaymentOnce(t *testing.T) {
 	if got["next_due_date"] != next {
 		t.Fatalf("普通付款错误推进账期: %+v",got)
 	}
+	// Undo restores the pending cycle without erasing the actual payment.
+	renewalID:=int64(created["id"].(float64))
+	request(t,router,http.MethodDelete,path+"/renewals/"+strconv.FormatInt(renewalID,10),nil,http.StatusNoContent)
+	got=request(t,router,http.MethodGet,path,nil,http.StatusOK)
+	if got["next_due_date"]!=due {t.Fatalf("撤销后到期日未恢复: %+v",got)}
+	request(t,router,http.MethodDelete,paymentPath,nil,http.StatusNoContent)
+	history=request(t,router,http.MethodGet,path+"/renewals",nil,http.StatusOK)
+	if len(history["items"].([]any))!=0 {t.Fatalf("撤销后历史关联仍存在: %+v",history)}
 }
 
 func TestSettlingCycleMarksItsReminderRead(t *testing.T){
