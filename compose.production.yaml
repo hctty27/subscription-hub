@@ -64,6 +64,38 @@ services:
     networks:
       - my-network
 
+  # Optional Cloudflare Tunnel. Its token is kept in the private environment file.
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - web
+    networks:
+      - my-network
+
+  # Optional encrypted offsite snapshots; enabled only with --profile backup.
+  restic:
+    image: restic/restic:0.19.1
+    profiles: ["backup"]
+    environment:
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-auto}
+    volumes:
+      - ./data:/backups-data:ro
+      - restic_repository:/repo
+    networks:
+      - my-network
+
+volumes:
+  restic_repository:
+
 networks:
   my-network:
     external: true

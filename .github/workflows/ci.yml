@@ -102,6 +102,8 @@ jobs:
       SUBSCRIPTION_ENV_FILE: .env.production.example
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare shared Docker network
+        run: docker network create my-network
       - name: Validate production Compose and shell scripts
         run: |
           docker compose --env-file .env.production.example -f compose.production.yaml config --quiet
@@ -134,6 +136,9 @@ jobs:
       - name: Stop production containers
         if: always()
         run: docker compose --env-file .env.production.example -f compose.production.yaml down
+      - name: Remove CI Docker network
+        if: always()
+        run: docker network rm my-network || true
 
   data-migration:
     runs-on: ubuntu-latest

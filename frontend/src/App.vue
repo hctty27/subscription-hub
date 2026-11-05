@@ -32,6 +32,7 @@ interface Item {
 type ItemDraft = Omit<Item, 'id' | 'next_due_date' | 'days_until' | 'amount_minor'>
 
 const page = ref<Page>('overview')
+const mobileMoreOpen = ref(false)
 const categories = ref<Category[]>([])
 const items = ref<Item[]>([])
 const busy = ref(true)
@@ -52,6 +53,11 @@ const editor = ref<ItemDraft>(blankItem('subscription'))
 const categoryName = ref('')
 const categoryColor = ref('#5470e8')
 const editingCategoryID = ref<number | null>(null)
+
+function navigate(target: Page) {
+  page.value = target
+  mobileMoreOpen.value = false
+}
 
 function todayString(): string {
   const date = new Date()
@@ -118,6 +124,7 @@ const activeResources = computed(() => items.value.filter(item =>
   item.kind === 'resource' && item.status === 'active').length)
 const upcoming = computed(() => items.value.filter(item =>
   item.status === 'active' && item.next_due_date && item.days_until >= 0 && item.days_until <= 30))
+const urgentDue = computed(() => upcoming.value.filter(item => item.days_until <= 7).length)
 const upcomingSorted = computed(() => items.value
   .filter(item => item.status === 'active' && item.next_due_date)
   .sort((a, b) => a.days_until - b.days_until)
@@ -356,19 +363,19 @@ onMounted(checkLogin)
   </div>
   <div v-else class="app-shell">
     <aside class="sidebar">
-      <a class="brand" href="/" @click.prevent="page = 'overview'">
+      <a class="brand" href="/" @click.prevent="navigate('overview')">
         <span class="brand-mark">S</span>
         <span>Subscription Hub</span>
       </a>
       <div class="nav-label">工作区</div>
       <nav class="nav-menu" aria-label="主导航">
-        <button :class="['nav-link', { active: page === 'overview' }]" @click="page = 'overview'">概览</button>
-        <button :class="['nav-link', { active: page === 'subscription' }]" @click="page = 'subscription'">订阅管理</button>
-        <button :class="['nav-link', { active: page === 'resource' }]" @click="page = 'resource'">资源管理</button>
-        <button :class="['nav-link', { active: page === 'categories' }]" @click="page = 'categories'">分类管理</button>
-        <button :class="['nav-link', { active: page === 'payments' }]" @click="page = 'payments'">付款流水</button>
-        <button :class="['nav-link', { active: page === 'reports' }]" @click="page = 'reports'">费用统计</button>
-        <button :class="['nav-link', { active: page === 'reminders' }]" @click="page = 'reminders'">提醒中心</button>
+        <button :class="['nav-link', { active: page === 'overview' }]" @click="navigate('overview')">概览</button>
+        <button :class="['nav-link', { active: page === 'subscription' }]" @click="navigate('subscription')">订阅管理</button>
+        <button :class="['nav-link', { active: page === 'resource' }]" @click="navigate('resource')">资源管理</button>
+        <button :class="['nav-link', { active: page === 'categories' }]" @click="navigate('categories')">分类管理</button>
+        <button :class="['nav-link', { active: page === 'payments' }]" @click="navigate('payments')">付款流水</button>
+        <button :class="['nav-link', { active: page === 'reports' }]" @click="navigate('reports')">费用统计</button>
+        <button :class="['nav-link', { active: page === 'reminders' }]" @click="navigate('reminders')">提醒中心</button>
       </nav>
       <div class="sidebar-footer"><button class="logout-button" type="button" @click="logout">退出登录</button><span>开源项目 · MIT License</span></div>
     </aside>
@@ -410,7 +417,12 @@ onMounted(checkLogin)
         <div class="metric">
           <span>未来 30 天到期</span>
           <strong>{{ upcoming.length }}</strong>
-          <small>暂未配置自动提醒</small>
+          <small>需要留意的续费项目</small>
+        </div>
+        <div class="metric metric-urgent">
+          <span>未来 7 天到期</span>
+          <strong>{{ urgentDue }}</strong>
+          <small>优先处理临近账单</small>
         </div>
       </section>
 
@@ -507,6 +519,31 @@ onMounted(checkLogin)
             </tbody>
           </table>
         </div>
+        <div class="mobile-item-list">
+          <div v-for="item in filtered" :key="item.id" class="mobile-item-card">
+            <div class="mobile-item-top">
+              <div class="mobile-item-title">
+                <strong>{{ item.name }}</strong>
+                <span v-if="categoryFor(item.category_id)" class="category-chip">
+                  <i :style="{ background: categoryFor(item.category_id)?.color }"></i>
+                  {{ categoryFor(item.category_id)?.name }}
+                </span>
+                <span v-else class="muted">未分类</span>
+              </div>
+              <span class="state-pill" :class="item.status">{{ statusLabel[item.status] }}</span>
+            </div>
+            <div class="mobile-item-price">{{ formatAmount(item.amount_minor, item.currency) }}</div>
+            <div class="mobile-item-meta">
+              <span>{{ periodLabel(item) }}</span>
+              <span>{{ item.next_due_date ? '下次到期 ' + item.next_due_date : '无到期日' }}</span>
+            </div>
+            <div class="mobile-item-actions">
+              <button type="button" @click="openEdit(item)">编辑</button>
+              <button type="button" class="danger-text" @click="deleteItem(item)">删除</button>
+            </div>
+          </div>
+          <div v-if="!busy && filtered.length === 0" class="mobile-item-empty">暂无记录，点击“新增”开始记录。</div>
+        </div>
       </section>
 
       <section v-if="page === 'categories'" class="category-layout">
@@ -534,11 +571,26 @@ onMounted(checkLogin)
           <p class="hint">被订阅或资源引用的分类不能删除，请先修改关联项目。</p>
         </div>
       </section>
-      <p v-if="page === 'overview'" class="footnote">开发版 · 本页面尚不包含用户登录，请仅在可信的本地环境使用。</p>
     </main>
 
+    <div v-if="mobileMoreOpen" class="mobile-more-backdrop" @click="mobileMoreOpen = false"></div>
+    <section v-if="mobileMoreOpen" class="mobile-more-sheet" aria-label="更多功能">
+      <div class="mobile-more-title">更多功能</div>
+      <button type="button" @click="navigate('reports')">费用统计</button>
+      <button type="button" @click="navigate('reminders')">提醒中心</button>
+      <button type="button" @click="navigate('categories')">分类管理</button>
+      <button type="button" @click="mobileMoreOpen = false; logout()">退出登录</button>
+    </section>
+    <nav class="mobile-bottom-nav" aria-label="移动端导航">
+      <button type="button" :class="{ active: page === 'overview' }" :aria-current="page === 'overview' ? 'page' : undefined" @click="navigate('overview')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 21v-8h6v8"/></svg>概览</button>
+      <button type="button" :class="{ active: page === 'subscription' }" :aria-current="page === 'subscription' ? 'page' : undefined" @click="navigate('subscription')"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9h18M7 15h5"/></svg>订阅</button>
+      <button type="button" :class="{ active: page === 'resource' }" :aria-current="page === 'resource' ? 'page' : undefined" @click="navigate('resource')"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="8" rx="2"/><rect x="3" y="13" width="18" height="8" rx="2"/><path d="M7 7h.01M7 17h.01M11 7h7M11 17h7"/></svg>资源</button>
+      <button type="button" :class="{ active: page === 'payments' }" :aria-current="page === 'payments' ? 'page' : undefined" @click="navigate('payments')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h16v18l-4-2-4 2-4-2-4 2z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>付款</button>
+      <button type="button" :class="{ active: mobileMoreOpen || page === 'reports' || page === 'reminders' || page === 'categories' }" :aria-expanded="mobileMoreOpen" @click="mobileMoreOpen = !mobileMoreOpen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>更多</button>
+    </nav>
+
     <div v-if="showEditor" class="modal-backdrop" @click.self="showEditor = false">
-      <form class="modal" @submit.prevent="saveItem">
+      <form class="modal" role="dialog" aria-modal="true" :aria-label="editingID === null ? '新增记录' : '编辑记录'" @submit.prevent="saveItem">
         <div class="modal-header">
           <div>
             <h2>{{ editingID === null ? '新增' : '编辑' }}{{ editor.kind === 'subscription' ? '订阅' : '资源' }}</h2>
