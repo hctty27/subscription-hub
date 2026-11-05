@@ -401,7 +401,7 @@ async function scan() {
     <div v-if="showPaymentForm" class="ledger-overlay" @click.self="showPaymentForm = false">
       <form class="ledger-modal" @submit.prevent="savePayment">
         <div class="ledger-modal-head"><div><h2>{{ editingPaymentId === null ? '记录付款' : '编辑付款' }}</h2>
-          <p>已带入项目默认金额，可按实付修改；付款记录不会改变到期周期。</p></div>
+          <p>选择项目后可自动带入默认金额，请按实付修改；付款记录不会改变到期周期。</p></div>
           <button type="button" aria-label="关闭" @click="showPaymentForm = false">×</button>
         </div>
         <div class="ledger-form-grid">
