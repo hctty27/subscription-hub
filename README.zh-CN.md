@@ -1,29 +1,41 @@
 # Subscription Hub
 
-> 面向个人与开发者的开源订阅及资源到期管理平台（开发中）。
+> 面向个人与开发者的开源订阅及资源生命周期管理平台（V1 开发中）。
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-## 定位
+## 已实现（V1 第一阶段）
 
-统一管理 AI 服务、软件会员、VPS、域名和其他周期性支出或到期资源。
+- SQLite 持久化与数据库版本初始化
+- 分类管理、订阅及资源的增删改查
+- 按天、按月、按年及自定义间隔续费
+- 月末日期和闰年日期处理（以首次到期日为锚点）
+- 正常、暂停、取消三种状态
+- Vue 3 响应式中文管理界面
+- Docker 数据卷持久化
 
-## 当前状态
-
-**项目初始化阶段。** 当前只有可运行的 API 健康检查与前端基础页面，不具备订阅记录、存储、提醒等业务功能。相关能力将按开发计划逐步实现。
+**暂未实现：**登录认证、实际支付账单、自动提醒、备份恢复、AI/MCP。当前仅适合可信的本地开发环境，**不要公开部署到公网**。
 
 ## 技术栈
 
-- 后端：Go + Gin
-- 前端：Vue 3 + TypeScript + Vite
-- 数据库（计划）：SQLite，后续可扩展 MySQL
-- 部署：Docker Compose（当前仅开发环境）
+- Go 1.26 + Gin + modernc.org/sqlite（纯 Go，无 CGO）
+- Vue 3 + TypeScript + Vite
+- SQLite（WAL 日志模式）
+- Docker Compose（本地开发）
 
-## 本地启动
+## 快速启动
 
-需要 Go 1.23+、Node.js 22.18+、npm。
+推荐 Docker：
 
-启动后端：
+```bash
+docker compose up --build
+```
+
+访问 http://localhost:5173。
+
+数据存储在 Docker 命名卷 `subscription_data`。`docker compose down` 不删除数据；执行 `docker compose down -v` **会清空数据卷**。
+
+也可本地运行（需要 Go 1.26+、Node.js 22.18+、npm）：
 
 ```bash
 cd backend
@@ -31,7 +43,7 @@ go mod tidy
 go run ./cmd/server
 ```
 
-另开终端启动前端：
+另开终端：
 
 ```bash
 cd frontend
@@ -39,34 +51,27 @@ npm install
 npm run dev
 ```
 
-访问 http://localhost:5173 。
+后端默认监听本机 `127.0.0.1:8080`，数据文件默认 `./data/subscription-hub.db`；`APP_TIMEZONE` 默认 `Asia/Shanghai`。Compose 在容器内监听所有网络地址，但向宿主机仅开放 `127.0.0.1`。
 
-也可以在仓库根目录执行：
+## 使用流程
 
-```bash
-docker compose up --build
-```
+1. 进入分类管理，可先添加 AI、服务器等分类。
+2. 进入订阅管理，添加服务名称、金额、周期、首次到期日期。
+3. 资源管理中可记录 VPS、域名和一次性到期资源。
+4. 概览可查看到期计划；当前不会自动发送提醒。
 
-当前 Docker Compose 配置仅供开发测试，不适合直接公开部署。
+货币金额以最小单位存储（例如 20.00 USD = 2000），暂不跨币种汇总。暂停、取消状态不参与下次到期展示。一次性到期资源过期后仍保留原到期日。
 
-API 检查：`GET http://localhost:8080/api/v1/health`，返回 `{"status":"ok"}`。
+## 开发文档
 
-## V1 规划
-
-1. 订阅、资源、分类的基础管理
-2. 计费周期和到期日计算
-3. 支付流水与支出统计
-4. SMTP / Telegram / Bark / Webhook 通知适配器
-5. SQLite 数据持久化、迁移与备份
-6. 登录认证、权限控制、基础安全防护
-7. 生产环境 Docker 部署
-
-详见 [开发路线图](docs/ROADMAP.md) 与 [架构设计](docs/ARCHITECTURE.md)。
+- [API 接口](docs/API.md)
+- [开发路线图](docs/ROADMAP.md)
+- [架构设计](docs/ARCHITECTURE.md)
 
 ## 安全提示
 
-当前为基础工程，不含业务数据持久化与用户身份认证。请勿将它直接暴露到公网，也不要向仓库提交密钥。
+**项目尚无登录鉴权，请勿开放至公网。**升级和卸载前需自行备份数据库，勿将密钥写入备注或提交仓库。
 
-## 开源协议
+## 许可证
 
 MIT，详见 [LICENSE](LICENSE)。
