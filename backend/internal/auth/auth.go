@@ -86,6 +86,7 @@ func (s *Service) clearFailure(ip string) {
 }
 
 func (s *Service) Login(c *gin.Context) {
+ if !allowedMutation(c) {c.JSON(http.StatusForbidden,gin.H{"error":gin.H{"message":"请求安全校验失败"}});return}
  if s.limited(c.ClientIP()) {c.JSON(http.StatusTooManyRequests,gin.H{"error":gin.H{"message":"登录失败次数过多，请 15 分钟后重试"}});return}
  c.Request.Body=http.MaxBytesReader(c.Writer,c.Request.Body,4096)
  var req struct { Password string `json:"password"` }
