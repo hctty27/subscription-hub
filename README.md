@@ -32,7 +32,7 @@ Manage recurring services, VPS subscriptions, domains, and other upcoming renewa
 
 ## Deployment
 
-For public deployment use the dedicated [production Compose and Cloudflare Tunnel guide](docs/DEPLOYMENT.md). It builds static Vue assets and serves them through Nginx, with optional Cloudflare Tunnel for HTTPS; the Go API is internal-only. An optional encrypted off-site Restic backup workflow is included. This is a production candidate requiring validation of real DNS/TLS, disaster recovery, security and provider credentials before broad public use.
+For public deployment use the dedicated [production Compose and Cloudflare Tunnel guide](docs/DEPLOYMENT.md). Use `sh scripts/compose-prod.sh` for production commands; it automatically layers optional Git-ignored `compose.production.local.yaml` over the tracked base file and loads the private `.env.production`. It builds static Vue assets and serves them through Nginx, with optional Cloudflare Tunnel for HTTPS; the Go API is internal-only. An optional encrypted off-site Restic backup workflow is included. This is a production candidate requiring validation of real DNS/TLS, disaster recovery, security and provider credentials before broad public use.
 
 ## Quick start
 
