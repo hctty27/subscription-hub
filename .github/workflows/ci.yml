@@ -39,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build and start containers
-        run: docker compose up -d --build
+        run: ADMIN_PASSWORD=ci-long-test-password-456 docker compose up -d --build
       - name: Verify HTTP services
         run: |
           for i in $(seq 1 45); do
@@ -55,10 +55,21 @@ jobs:
           grep -q 'Subscription Hub' /tmp/frontend.html
           curl -fsS http://127.0.0.1:5173/api/v1/health -o /tmp/proxied-health.json
           grep -q '"status":"ok"' /tmp/proxied-health.json
+      - name: Verify protected API and login
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/v1/items)
+          test "$code" = "401"
+          curl -fsS -c /tmp/admin-cookies.txt -X POST http://127.0.0.1:8080/api/v1/auth/login \
+            -H 'Content-Type: application/json' -H 'X-CSRF-Token: 1' \
+            -d '{"password":"ci-long-test-password-456"}' -o /tmp/login.json
+          grep -q '"authenticated":true' /tmp/login.json
+          curl -fsS -b /tmp/admin-cookies.txt http://127.0.0.1:8080/api/v1/auth/me \
+            -o /tmp/me.json
+          grep -q '"authenticated":true' /tmp/me.json
       - name: Verify CRUD and persistent volume
         run: |
-          curl -fsS -X POST http://127.0.0.1:8080/api/v1/items \
-            -H 'Content-Type: application/json' \
+          curl -fsS -b /tmp/admin-cookies.txt -X POST http://127.0.0.1:8080/api/v1/items \
+            -H 'Content-Type: application/json' -H 'X-CSRF-Token: 1' \
             -d '{"name":"CI 订阅","kind":"subscription","status":"active","amount_minor":2000,"currency":"USD","period_unit":"month","period_count":1,"first_due_date":"2026-01-31","notes":""}' \
             -o /tmp/created.json
           grep -q '"name":"CI 订阅"' /tmp/created.json
@@ -69,7 +80,7 @@ jobs:
             fi
             sleep 2
           done
-          curl -fsS 'http://127.0.0.1:8080/api/v1/items?limit=10' -o /tmp/items.json
+          curl -fsS -b /tmp/admin-cookies.txt 'http://127.0.0.1:8080/api/v1/items?limit=10' -o /tmp/items.json
           grep -q '"name":"CI 订阅"' /tmp/items.json
       - name: Show logs on failure
         if: failure()

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/hctty27/subscription-hub/backend/internal/auth"
 	"github.com/hctty27/subscription-hub/backend/internal/billing"
 	"github.com/hctty27/subscription-hub/backend/internal/store"
 )
@@ -17,41 +18,57 @@ import (
 type api struct {
 	repo *store.Store
 	loc  *time.Location
+	backupDir string
 }
 
-func NewRouter(repo *store.Store, loc *time.Location) *gin.Engine {
+func NewRouter(repo *store.Store, loc *time.Location, security *auth.Service, backupDir string) *gin.Engine {
+	if security == nil { panic("必须启用身份认证") }
 	if loc == nil {
 		loc = time.UTC
 	}
-	a := &api{repo: repo, loc: loc}
+	a := &api{repo: repo, loc: loc, backupDir: backupDir}
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
+	_ = r.SetTrustedProxies(nil)
+	r.Use(func(c *gin.Context){
+		c.Header("X-Content-Type-Options","nosniff")
+		c.Header("Referrer-Policy","no-referrer")
+		c.Header("X-Frame-Options","DENY")
+		c.Next()
+	})
 	v1 := r.Group("/api/v1")
 	v1.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+	v1.POST("/auth/login", security.Login)
+	private := v1.Group("")
+	private.Use(security.Require)
+	private.GET("/auth/me", security.Me)
+	private.POST("/auth/logout", security.Logout)
+	private.GET("/backups", a.listBackups)
+	private.POST("/backups", a.createBackup)
 
-	v1.GET("/categories", a.listCategories)
-	v1.POST("/categories", a.createCategory)
-	v1.PUT("/categories/:id", a.updateCategory)
-	v1.DELETE("/categories/:id", a.deleteCategory)
-	v1.GET("/items", a.listItems)
-	v1.GET("/items/:id", a.getItem)
-	v1.POST("/items", a.createItem)
-	v1.PUT("/items/:id", a.updateItem)
-	v1.DELETE("/items/:id", a.deleteItem)
-	v1.GET("/payments", a.listPayments)
-	v1.POST("/payments", a.createPayment)
-	v1.PUT("/payments/:id", a.updatePayment)
-	v1.DELETE("/payments/:id", a.deletePayment)
-	v1.GET("/reports/expenses", a.expenseReport)
-	v1.GET("/reminder-rules", a.listReminderRules)
-	v1.POST("/reminder-rules", a.createReminderRule)
-	v1.PUT("/reminder-rules/:id", a.updateReminderRule)
-	v1.DELETE("/reminder-rules/:id", a.deleteReminderRule)
-	v1.GET("/notifications", a.listNotifications)
-	v1.POST("/notifications/:id/read", a.markNotificationRead)
-	v1.POST("/notifications/scan", a.scanNotifications)
+	private.GET("/categories", a.listCategories)
+	private.POST("/categories", a.createCategory)
+	private.PUT("/categories/:id", a.updateCategory)
+	private.DELETE("/categories/:id", a.deleteCategory)
+	private.GET("/items", a.listItems)
+	private.GET("/items/:id", a.getItem)
+	private.POST("/items", a.createItem)
+	private.PUT("/items/:id", a.updateItem)
+	private.DELETE("/items/:id", a.deleteItem)
+	private.GET("/payments", a.listPayments)
+	private.POST("/payments", a.createPayment)
+	private.PUT("/payments/:id", a.updatePayment)
+	private.DELETE("/payments/:id", a.deletePayment)
+	private.GET("/reports/expenses", a.expenseReport)
+	private.GET("/reminder-rules", a.listReminderRules)
+	private.POST("/reminder-rules", a.createReminderRule)
+	private.PUT("/reminder-rules/:id", a.updateReminderRule)
+	private.DELETE("/reminder-rules/:id", a.deleteReminderRule)
+	private.GET("/notifications", a.listNotifications)
+	private.POST("/notifications/:id/read", a.markNotificationRead)
+	private.POST("/notifications/scan", a.scanNotifications)
 	return r
 }
 

@@ -71,10 +71,14 @@ function messageOf(reason: unknown) { return reason instanceof Error ? reason.me
 async function api<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   const response = await fetch('/api/v1' + path, {
     method,
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    headers: {
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(method === 'GET' ? {} : { 'X-CSRF-Token': '1' }),
+    },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (response.status === 204) return undefined as T
+  if (response.status === 401) window.location.reload()
   const data = await response.json()
   if (!response.ok) throw new Error(data?.error?.message || '请求失败')
   return data as T

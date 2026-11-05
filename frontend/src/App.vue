@@ -35,6 +35,12 @@ const page = ref<Page>('overview')
 const categories = ref<Category[]>([])
 const items = ref<Item[]>([])
 const busy = ref(true)
+const authenticated = ref(false)
+const authChecking = ref(true)
+const loginPassword = ref('')
+const loginBusy = ref(false)
+const loginError = ref('')
+const backupInfo = ref('')
 const error = ref('')
 const search = ref('')
 const statusFilter = ref('')
@@ -72,10 +78,14 @@ function blankItem(kind: Kind): ItemDraft {
 async function api<T>(path: string, method = 'GET', payload?: unknown): Promise<T> {
   const response = await fetch('/api/v1' + path, {
     method,
-    headers: payload === undefined ? undefined : { 'Content-Type': 'application/json' },
+    headers: {
+      ...(payload === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(method === 'GET' ? {} : { 'X-CSRF-Token': '1' }),
+    },
     body: payload === undefined ? undefined : JSON.stringify(payload),
   })
   if (response.status === 204) return undefined as T
+  if (response.status === 401) authenticated.value = false
   const data = await response.json()
   if (!response.ok) throw new Error(data?.error?.message || '请求失败，请稍后重试')
   return data as T
@@ -267,11 +277,84 @@ async function deleteCategory(category: Category) {
   }
 }
 
-onMounted(reload)
+async function checkLogin() {
+  authChecking.value = true
+  try {
+    const response = await fetch('/api/v1/auth/me', { credentials: 'same-origin' })
+    authenticated.value = response.ok
+    if (response.ok) await reload()
+    else if (response.status !== 401) loginError.value = '无法检查登录状态，请检查后端连接'
+  } catch {
+    authenticated.value = false
+    loginError.value = '无法连接后端，请检查服务是否启动'
+  } finally {
+    authChecking.value = false
+  }
+}
+
+async function login() {
+  if (loginBusy.value) return
+  loginBusy.value = true
+  loginError.value = ''
+  try {
+    const response = await fetch('/api/v1/auth/login', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '1' },
+      body: JSON.stringify({ password: loginPassword.value }),
+    })
+    const body = await response.json()
+    if (!response.ok) throw new Error(body?.error?.message || '登录失败')
+    authenticated.value = true
+    loginPassword.value = ''
+    await reload()
+  } catch (reason) {
+    loginError.value = messageOf(reason)
+  } finally {
+    loginBusy.value = false
+  }
+}
+
+async function logout() {
+  try {
+    await api('/auth/logout', 'POST')
+    authenticated.value = false
+    items.value = []
+    categories.value = []
+    page.value = 'overview'
+  } catch (reason) {
+    error.value = messageOf(reason)
+  }
+}
+
+async function createBackup() {
+  try {
+    const backup = await api<{ file: string }>('/backups', 'POST')
+    backupInfo.value = '备份成功：' + backup.file
+  } catch (reason) {
+    backupInfo.value = '备份失败：' + messageOf(reason)
+  }
+}
+
+onMounted(checkLogin)
 </script>
 
 <template>
-  <div class="app-shell">
+  <div v-if="authChecking" class="auth-shell"><div class="auth-card"><h1>Subscription Hub</h1><p>正在检查登录状态…</p></div></div>
+  <div v-else-if="!authenticated" class="auth-shell">
+    <form class="auth-card" @submit.prevent="login">
+      <div class="auth-mark">S</div>
+      <h1>Subscription Hub</h1>
+      <p>请输入管理员密码，访问你的订阅与资源账本。</p>
+      <label for="admin-password">管理员密码</label>
+      <input id="admin-password" v-model="loginPassword" type="password"
+        autocomplete="current-password" required autofocus minlength="12" maxlength="128" />
+      <div v-if="loginError" role="alert" class="auth-error">{{ loginError }}</div>
+      <button type="submit" :disabled="loginBusy">{{ loginBusy ? '登录中…' : '登录' }}</button>
+      <small>单管理员本地部署 · 请勿使用公开访问的开发服务</small>
+    </form>
+  </div>
+  <div v-else class="app-shell">
     <aside class="sidebar">
       <a class="brand" href="/" @click.prevent="page = 'overview'">
         <span class="brand-mark">S</span>
@@ -287,7 +370,7 @@ onMounted(reload)
         <button :class="['nav-link', { active: page === 'reports' }]" @click="page = 'reports'">费用统计</button>
         <button :class="['nav-link', { active: page === 'reminders' }]" @click="page = 'reminders'">提醒中心</button>
       </nav>
-      <div class="sidebar-footer">开源项目 · MIT License</div>
+      <div class="sidebar-footer"><button class="logout-button" type="button" @click="logout">退出登录</button><span>开源项目 · MIT License</span></div>
     </aside>
 
     <main class="main">
@@ -369,6 +452,8 @@ onMounted(reload)
             <div><span>项目数量</span><strong>{{ items.length }}</strong></div>
             <div><span>分类数量</span><strong>{{ categories.length }}</strong></div>
             <div><span>账单与提醒</span><strong>已提供独立页面</strong></div>
+            <div><span>数据库备份</span><button class="button secondary" type="button" @click="createBackup">立即备份</button></div>
+            <p v-if="backupInfo" class="backup-note">{{ backupInfo }}</p>
           </div>
           <p class="hint">金额不跨币种直接求和，当前仅展示配置的价格和预计到期日。</p>
         </article>

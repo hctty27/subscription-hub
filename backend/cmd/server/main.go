@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"log"
 	"net/http"
 	"os"
@@ -10,6 +11,7 @@ import (
 	_ "time/tzdata"
 
 	"github.com/hctty27/subscription-hub/backend/internal/httpapi"
+	"github.com/hctty27/subscription-hub/backend/internal/auth"
 	"github.com/hctty27/subscription-hub/backend/internal/reminder"
 	"github.com/hctty27/subscription-hub/backend/internal/store"
 )
@@ -36,13 +38,18 @@ func main() {
 		log.Fatalf("数据库初始化失败：%v", err)
 	}
 	defer repo.Close()
-	workerContext, cancelWorker := context.WithCancel(context.Background())
+	security,err:=auth.New(context.Background(),repo,os.Getenv("ADMIN_PASSWORD"),auth.SecureCookieFromEnvironment())
+	if err!=nil{log.Fatalf("管理员身份认证初始化失败：%v",err)}
+	backupDir:=os.Getenv("BACKUP_DIR")
+	if backupDir==""{backupDir=filepath.Join("data","backups")}
+	workerContext,cancelWorker:=context.WithCancel(context.Background())
 	defer cancelWorker()
+	go startBackupWorker(workerContext,repo,backupDir,loc)
 	go reminder.Start(workerContext, repo, loc)
 
 	server := &http.Server{
 		Addr:              host + ":" + port,
-		Handler:           httpapi.NewRouter(repo, loc),
+		Handler:           httpapi.NewRouter(repo, loc, security, backupDir),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
@@ -53,4 +60,21 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
+}
+
+func startBackupWorker(ctx context.Context,repo *store.Store,dir string,loc *time.Location){
+  for {
+    now:=time.Now().In(loc)
+    next:=time.Date(now.Year(),now.Month(),now.Day(),3,0,0,0,loc)
+    if !next.After(now){next=next.AddDate(0,0,1)}
+    timer:=time.NewTimer(time.Until(next))
+    select{
+    case <-ctx.Done():timer.Stop();return
+    case <-timer.C:
+      backupCtx,cancel:=context.WithTimeout(ctx,2*time.Minute)
+      info,err:=repo.Backup(backupCtx,dir,7)
+      cancel()
+      if err!=nil{log.Printf("自动备份失败：%v",err)}else{log.Printf("自动备份完成：%s",info.File)}
+    }
+  }
 }
