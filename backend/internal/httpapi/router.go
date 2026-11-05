@@ -62,6 +62,8 @@ func NewRouter(repo *store.Store, loc *time.Location, security *auth.Service, ba
 	private.POST("/items", a.createItem)
 	private.PUT("/items/:id", a.updateItem)
 	private.DELETE("/items/:id", a.deleteItem)
+	private.GET("/items/:id/renewals", a.listItemRenewals)
+	private.POST("/items/:id/renew", a.renewItem)
 	private.GET("/payments", a.listPayments)
 	private.POST("/payments", a.createPayment)
 	private.PUT("/payments/:id", a.updatePayment)
@@ -257,17 +259,22 @@ func allowedCurrency(value string) bool {
 	}
 }
 
-func (a *api) fillSchedule(item *store.Item) {
+func (a *api) fillSchedule(ctx *gin.Context, item *store.Item) error {
 	if item.Status != "active" {
-		return
+		return nil
 	}
 	today := time.Now().In(a.loc)
-	date, err := billing.NextDue(item.FirstDueDate, item.PeriodUnit, item.PeriodCount, today)
+	date, completed, err := a.repo.CurrentRenewal(ctx.Request.Context(), *item, today)
 	if err != nil {
-		return
+		return err
+	}
+	item.RenewalCompleted = completed
+	if completed {
+		return nil
 	}
 	item.NextDueDate = date
-	item.DaysUntil, _ = billing.DaysUntil(date, today)
+	item.DaysUntil, err = billing.DaysUntil(date, today)
+	return err
 }
 
 func (a *api) listItems(c *gin.Context) {
@@ -309,7 +316,10 @@ func (a *api) listItems(c *gin.Context) {
 		return
 	}
 	for i := range items {
-		a.fillSchedule(&items[i])
+		if err := a.fillSchedule(c, &items[i]); err != nil {
+			failedStore(c, err)
+			return
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"items": items, "limit": limit, "offset": offset})
 }
@@ -324,7 +334,10 @@ func (a *api) getItem(c *gin.Context) {
 		failedStore(c, err)
 		return
 	}
-	a.fillSchedule(&item)
+	if err := a.fillSchedule(c, &item); err != nil {
+		failedStore(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, item)
 }
 
@@ -361,7 +374,10 @@ func (a *api) createItem(c *gin.Context) {
 		failedStore(c, err)
 		return
 	}
-	a.fillSchedule(&created)
+	if err := a.fillSchedule(c, &created); err != nil {
+		failedStore(c, err)
+		return
+	}
 	c.JSON(http.StatusCreated, created)
 }
 
@@ -380,7 +396,10 @@ func (a *api) updateItem(c *gin.Context) {
 		failedStore(c, err)
 		return
 	}
-	a.fillSchedule(&updated)
+	if err := a.fillSchedule(c, &updated); err != nil {
+		failedStore(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, updated)
 }
 
