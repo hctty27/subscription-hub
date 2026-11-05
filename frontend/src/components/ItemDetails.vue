@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 type Status = 'active' | 'paused' | 'canceled'
 type Period = 'none' | 'day' | 'month' | 'year'
@@ -37,6 +37,7 @@ const emit = defineEmits<{
   (event: 'payment-created'): void
 }>()
 
+const dialog = ref<HTMLElement | null>(null)
 const payments = ref<Payment[]>([])
 const loading = ref(false)
 const saving = ref(false)
@@ -102,6 +103,9 @@ const statusLabel = computed(() => ({
   paused: '已暂停',
   canceled: '已取消',
 }[props.item.status]))
+const recentPayments = computed(() => [...payments.value]
+  .sort((a, b) => b.paid_date.localeCompare(a.paid_date) || b.id - a.id)
+  .slice(0, 8))
 const periodLabel = computed(() => {
   const unit = { none: '一次性', day: '天', month: '月', year: '年' }[props.item.period_unit]
   if (props.item.period_unit === 'none') return unit
@@ -140,6 +144,8 @@ async function savePayment(): Promise<void> {
     saving.value = false
   }
 }
+onMounted(() => dialog.value?.focus())
+
 function close(): void {
   if (saving.value) return
   if (showPaymentForm.value) {
@@ -153,7 +159,7 @@ function close(): void {
 
 <template>
   <div class="detail-backdrop" @click.self="close" @keydown.esc="close">
-    <section class="detail-dialog" role="dialog" aria-modal="true" :aria-label="item.name + ' 项目详情'">
+    <section ref="dialog" class="detail-dialog" tabindex="-1" role="dialog" aria-modal="true" :aria-label="item.name + ' 项目详情'">
       <div class="detail-header">
         <div>
           <span class="detail-eyebrow">{{ item.kind === 'subscription' ? '订阅详情' : '资源详情' }}</span>
@@ -184,7 +190,7 @@ function close(): void {
         <p v-else-if="historyError" class="detail-message detail-error">{{ historyError }} <button type="button" @click="loadPayments">重试</button></p>
         <p v-else-if="payments.length === 0" class="detail-message">暂无付款记录</p>
         <div v-else class="detail-history">
-          <div v-for="payment in payments.slice(0, 8)" :key="payment.id" class="detail-history-row">
+          <div v-for="payment in recentPayments" :key="payment.id" class="detail-history-row">
             <div><strong>{{ payment.paid_date }}</strong><small v-if="payment.notes">{{ payment.notes }}</small></div>
             <strong>{{ formatAmount(payment.amount_minor, payment.currency) }}</strong>
           </div>
