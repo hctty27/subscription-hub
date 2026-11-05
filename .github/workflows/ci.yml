@@ -106,40 +106,35 @@ jobs:
         run: docker network create my-network
       - name: Validate production Compose and shell scripts
         run: |
-          sh scripts/compose-prod.sh config --quiet
-          sh -n scripts/compose-prod.sh
-          test -x scripts/compose-prod.sh
+          docker compose --env-file .env.production.example -f compose.production.yaml config --quiet
           sh -n scripts/backup-offsite.sh
           sh -n scripts/smoke-production.sh
           sh -n scripts/migrate-data-volumes.sh
-      - name: Verify private Compose override and environment checks
+      - name: Verify explicit production Compose selection
         run: |
-          test ! -e compose.production.local.yaml
-          git check-ignore -q compose.production.local.yaml
-          sh scripts/compose-prod.sh config --format json | jq -e '.services.web.environment.SUBHUB_LOCAL_OVERRIDE == null'
-          cp compose.production.local.example.yaml compose.production.local.yaml
-          printf '    environment:\n      SUBHUB_LOCAL_OVERRIDE: present\n' >> compose.production.local.yaml
-          sh scripts/compose-prod.sh config --format json | jq -e '.services.web.environment.SUBHUB_LOCAL_OVERRIDE == "present"'
-          rm compose.production.local.yaml
-          sh scripts/compose-prod.sh config --quiet
-          if SUBSCRIPTION_ENV_FILE=.env.production.nonexistent sh scripts/compose-prod.sh config --quiet; then
-            echo "缺失环境文件时应拒绝执行" >&2
-            exit 1
-          fi
+          test ! -e compose.production.user.yaml
+          git check-ignore -q compose.production.user.yaml
+          cp compose.production.yaml compose.production.user.yaml
+          sed -i 's/image: subhub-web$/image: subhub-web-custom/' compose.production.user.yaml
+          COMPOSE_FILE=compose.production.user.yaml docker compose --env-file .env.production.example config --format json | jq -e '.services.web.image == "subhub-web-custom"'
+          docker compose --env-file .env.production.example -f compose.production.yaml config --format json | jq -e '.services.web.image == "subhub-web"'
+          rm compose.production.user.yaml
+          sh -n scripts/backup-offsite.sh
+          sh -n scripts/migrate-data-volumes.sh
       - name: Prepare production data directory
         run: sh scripts/migrate-data-volumes.sh production
       - name: Build and start production containers
-        run: sh scripts/compose-prod.sh up -d --build
+        run: docker compose --env-file .env.production.example -f compose.production.yaml up -d --build
       - name: Verify Nginx configuration, frontend, API, login and CSRF
         run: |
-          sh scripts/compose-prod.sh exec -T web nginx -t
+          docker compose --env-file .env.production.example -f compose.production.yaml exec -T web nginx -t
           sh scripts/smoke-production.sh
       - name: Verify SQLite snapshot and encrypted Restic backup
         run: |
-          sh scripts/compose-prod.sh exec -T api /app/backup
-          sh scripts/compose-prod.sh --profile backup run --rm --no-deps restic init
+          docker compose --env-file .env.production.example -f compose.production.yaml exec -T api /app/backup
+          docker compose --env-file .env.production.example -f compose.production.yaml --profile backup run --rm --no-deps restic init
           sh scripts/backup-offsite.sh
-          sh scripts/compose-prod.sh --profile backup run --rm --no-deps restic snapshots --json > /tmp/restic-snapshots.json
+          docker compose --env-file .env.production.example -f compose.production.yaml --profile backup run --rm --no-deps restic snapshots --json > /tmp/restic-snapshots.json
           grep -q 'subscription-hub' /tmp/restic-snapshots.json
           docker run --rm -v "$PWD/data:/check:ro" alpine:3.22 sh -c '
             test -f /check/subscription-hub.db
@@ -148,10 +143,10 @@ jobs:
           '
       - name: Show production logs on failure
         if: failure()
-        run: sh scripts/compose-prod.sh logs --no-color
+        run: docker compose --env-file .env.production.example -f compose.production.yaml logs --no-color
       - name: Stop production containers
         if: always()
-        run: sh scripts/compose-prod.sh down
+        run: docker compose --env-file .env.production.example -f compose.production.yaml down
       - name: Remove CI Docker network
         if: always()
         run: docker network rm my-network || true
