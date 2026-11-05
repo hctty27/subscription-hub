@@ -5,7 +5,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/hctty27/subscription-hub/backend/internal/billing"
 	"github.com/hctty27/subscription-hub/backend/internal/notify"
 	"github.com/hctty27/subscription-hub/backend/internal/store"
 )
@@ -22,11 +21,15 @@ func RunOnce(ctx context.Context,repo *store.Store,loc *time.Location,now time.T
 		if err:=ctx.Err();err!=nil{return created,err}
 		item,err:=repo.GetItem(ctx,rule.ItemID)
 		if err!=nil{return created,err}
-		due,err:=billing.NextDue(item.FirstDueDate,item.PeriodUnit,item.PeriodCount,today)
+		due,completed,err:=repo.CurrentRenewal(ctx,item,today)
 		if err!=nil{return created,err}
-		days,err:=billing.DaysUntil(due,today)
+		if completed{continue}
+		dueTime,err:=time.Parse("2006-01-02",due)
 		if err!=nil{return created,err}
-		if days<0||days>rule.DaysBefore{continue}
+		current,err:=time.Parse("2006-01-02",today.Format("2006-01-02"))
+		if err!=nil{return created,err}
+		days:=int(dueTime.Sub(current).Hours()/24)
+		if days>rule.DaysBefore{continue}
 		ok,err:=repo.InsertReminderNotification(ctx,rule,due)
 		if err!=nil{return created,err}
 		if ok{created++}

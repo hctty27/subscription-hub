@@ -39,3 +39,24 @@ func TestReminderIdempotencyAndRead(t *testing.T) {
 	result=request(t,router,http.MethodGet,"/api/v1/notifications",nil,http.StatusOK)
 	if len(result["items"].([]any))!=0 {t.Fatalf("规则删除后通知未级联删除：%v",result)}
 }
+
+
+func TestOverdueUnsettledCycleGeneratesOneReminder(t *testing.T) {
+	router,repo,_:=testRouter(t)
+	now:=time.Now().UTC()
+	due:=now.AddDate(0,0,1).Format("2006-01-02")
+	item:=request(t,router,http.MethodPost,"/api/v1/items",map[string]any{
+		"name":"逾期未续费","kind":"subscription","status":"active",
+		"amount_minor":1000,"currency":"CNY","period_unit":"month",
+		"period_count":1,"first_due_date":due,
+	},http.StatusCreated)
+	itemID:=int64(item["id"].(float64))
+	request(t,router,http.MethodPost,"/api/v1/reminder-rules",map[string]any{
+		"item_id":itemID,"days_before":1,"enabled":true,
+	},http.StatusCreated)
+	when:=now.AddDate(0,0,4)
+	n,err:=reminder.RunOnce(context.Background(),repo,time.UTC,when)
+	if err!=nil||n!=1{t.Fatalf("逾期通知未生成: n=%d err=%v",n,err)}
+	n,err=reminder.RunOnce(context.Background(),repo,time.UTC,when)
+	if err!=nil||n!=0{t.Fatalf("逾期通知重复生成: n=%d err=%v",n,err)}
+}

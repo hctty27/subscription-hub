@@ -29,7 +29,7 @@ func TestMigrateFromVersionOne(t *testing.T){
 	item,err:=s.GetItem(context.Background(),1)
 	if err!=nil||item.Name!="旧订阅"{t.Fatalf("历史项目丢失：%+v err=%v",item,err)}
 	var version int
-	if err:=s.db.QueryRow("PRAGMA user_version").Scan(&version);err!=nil||version!=4{
+	if err:=s.db.QueryRow("PRAGMA user_version").Scan(&version);err!=nil||version!=5{
 		t.Fatalf("升级后版本错误：version=%d err=%v",version,err)
 	}
 	if _,err:=s.ExpenseReport(context.Background(),"2026-01");err!=nil{t.Fatalf("新表不可用：%v",err)}
