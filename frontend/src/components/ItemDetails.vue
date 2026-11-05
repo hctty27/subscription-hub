@@ -50,6 +50,7 @@ const renewals = ref<Renewal[]>([])
 const settleCurrentCycle = ref(false)
 const loading = ref(false)
 const saving = ref(false)
+const undoBusy = ref(false)
 const historyError = ref('')
 const formError = ref('')
 const showPaymentForm = ref(false)
@@ -88,6 +89,7 @@ async function api<T>(path: string, method = 'GET', payload?: unknown): Promise<
     body: payload === undefined ? undefined : JSON.stringify(payload),
   })
   if (response.status === 401) throw new Error('登录状态已过期，请刷新页面重新登录')
+  if (response.status === 204) return undefined as T
   const data = await response.json()
   if (!response.ok) throw new Error(data?.error?.message || '请求失败')
   return data as T
@@ -167,6 +169,23 @@ async function savePayment(): Promise<void> {
     saving.value = false
   }
 }
+async function undoLatestRenewal(): Promise<void> {
+  const latest = renewals.value[0]
+  if (!latest || undoBusy.value) return
+  if (!window.confirm('撤销本期续期确认？原有付款流水会保留，如需删除付款请到「账单」操作。')) return
+  undoBusy.value = true
+  historyError.value = ''
+  try {
+    await api('/items/' + props.item.id + '/renewals/' + latest.id, 'DELETE')
+    await loadPayments()
+    emit('payment-created')
+  } catch (reason) {
+    historyError.value = messageOf(reason)
+  } finally {
+    undoBusy.value = false
+  }
+}
+
 onMounted(() => dialog.value?.focus())
 
 function close(): void {
@@ -215,7 +234,13 @@ function close(): void {
         <div v-else class="detail-history">
           <div v-for="payment in recentPayments" :key="payment.id" class="detail-history-row">
             <div><strong>{{ payment.paid_date }}</strong>
-              <small v-if="renewalByPayment.has(payment.id)" class="renewal-payment-label">已结算账期 {{ renewalByPayment.get(payment.id) }}</small>
+              <small v-if="renewalByPayment.has(payment.id)" class="renewal-payment-label">
+                已结算账期 {{ renewalByPayment.get(payment.id) }}
+                <button v-if="renewals[0]?.payment_id === payment.id" type="button"
+                  class="renewal-undo" :disabled="undoBusy" @click="undoLatestRenewal">
+                  {{ undoBusy ? '撤销中…' : '撤销续期' }}
+                </button>
+              </small>
               <small v-if="payment.notes">{{ payment.notes }}</small>
             </div>
             <strong>{{ formatAmount(payment.amount_minor, payment.currency) }}</strong>
