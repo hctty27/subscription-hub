@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hctty27/subscription-hub/backend/internal/auth"
+	"github.com/hctty27/subscription-hub/backend/internal/notify"
 	"github.com/hctty27/subscription-hub/backend/internal/billing"
 	"github.com/hctty27/subscription-hub/backend/internal/store"
 )
@@ -19,14 +20,16 @@ type api struct {
 	repo *store.Store
 	loc  *time.Location
 	backupDir string
+	dispatcher *notify.Dispatcher
 }
 
-func NewRouter(repo *store.Store, loc *time.Location, security *auth.Service, backupDir string) *gin.Engine {
+func NewRouter(repo *store.Store, loc *time.Location, security *auth.Service, backupDir string, dispatcher ...*notify.Dispatcher) *gin.Engine {
 	if security == nil { panic("必须启用身份认证") }
 	if loc == nil {
 		loc = time.UTC
 	}
 	a := &api{repo: repo, loc: loc, backupDir: backupDir}
+	if len(dispatcher)>0{a.dispatcher=dispatcher[0]}
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 	_ = r.SetTrustedProxies(nil)
@@ -47,6 +50,8 @@ func NewRouter(repo *store.Store, loc *time.Location, security *auth.Service, ba
 	private.POST("/auth/logout", security.Logout)
 	private.GET("/backups", a.listBackups)
 	private.POST("/backups", a.createBackup)
+	private.GET("/notification-channels", a.listNotificationChannels)
+	private.GET("/notification-deliveries", a.listNotificationDeliveries)
 
 	private.GET("/categories", a.listCategories)
 	private.POST("/categories", a.createCategory)

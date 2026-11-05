@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hctty27/subscription-hub/backend/internal/billing"
+	"github.com/hctty27/subscription-hub/backend/internal/notify"
 	"github.com/hctty27/subscription-hub/backend/internal/store"
 )
 
@@ -35,14 +36,19 @@ func RunOnce(ctx context.Context,repo *store.Store,loc *time.Location,now time.T
 
 // Start executes on boot and subsequently once an hour. Multiple scans are
 // harmless because of the unique (rule_id,due_date) database constraint.
-func Start(ctx context.Context,repo *store.Store,loc *time.Location){
+func Start(ctx context.Context,repo *store.Store,loc *time.Location,dispatcher *notify.Dispatcher){
 	run:=func(){
 		if n,err:=RunOnce(ctx,repo,loc,time.Now());err!=nil{
 			if ctx.Err()==nil{log.Printf("生成站内到期提醒失败：%v",err)}
 		}else if n>0{log.Printf("已生成 %d 条站内到期提醒",n)}
+		if dispatcher!=nil {
+			if n,err:=dispatcher.Tick(ctx,time.Now());err!=nil{
+				if ctx.Err()==nil{log.Printf("外部通知处理失败：%v",err)}
+			}else if n>0{log.Printf("已处理 %d 条外部通知任务",n)}
+		}
 	}
 	run()
-	ticker:=time.NewTicker(time.Hour)
+	ticker:=time.NewTicker(time.Minute)
 	defer ticker.Stop()
 	for{
 		select{
