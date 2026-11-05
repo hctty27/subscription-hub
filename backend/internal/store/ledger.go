@@ -63,6 +63,9 @@ func (s *Store) CreatePayment(ctx context.Context,p Payment)(Payment,error){
 }
 
 func (s *Store) UpdatePayment(ctx context.Context,p Payment)(Payment,error){
+	var linked bool
+	if err:=s.db.QueryRowContext(ctx,"SELECT EXISTS(SELECT 1 FROM item_renewals WHERE payment_id=?)",p.ID).Scan(&linked);err!=nil{return Payment{},err}
+	if linked{return Payment{},ErrConflict}
 	result,err:=s.db.ExecContext(ctx,"UPDATE payments SET item_id=?,amount_minor=?,currency=?,paid_date=?,notes=? WHERE id=?",p.ItemID,p.AmountMinor,p.Currency,p.PaidDate,p.Notes,p.ID)
 	if err!=nil{return Payment{},constraintError(err)}
 	n,err:=result.RowsAffected()
