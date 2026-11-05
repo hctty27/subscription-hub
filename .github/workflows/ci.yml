@@ -117,7 +117,7 @@ jobs:
           git check-ignore -q compose.production.local.yaml
           sh scripts/compose-prod.sh config --format json | jq -e '.services.web.environment.SUBHUB_LOCAL_OVERRIDE == null'
           cp compose.production.local.example.yaml compose.production.local.yaml
-          printf '    environment:\\n      SUBHUB_LOCAL_OVERRIDE: present\\n' >> compose.production.local.yaml
+          printf '    environment:\n      SUBHUB_LOCAL_OVERRIDE: present\n' >> compose.production.local.yaml
           sh scripts/compose-prod.sh config --format json | jq -e '.services.web.environment.SUBHUB_LOCAL_OVERRIDE == "present"'
           rm compose.production.local.yaml
           sh scripts/compose-prod.sh config --quiet
