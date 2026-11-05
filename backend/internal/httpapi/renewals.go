@@ -3,6 +3,7 @@ package httpapi
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -80,4 +81,27 @@ func (a *api) listItemRenewals(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"items": renewals})
+}
+
+
+func (a *api) undoItemRenewal(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+	renewalID, err := strconv.ParseInt(c.Param("renewalID"), 10, 64)
+	if err != nil || renewalID <= 0 {
+		fail(c, http.StatusBadRequest, "无效的续期记录 ID")
+		return
+	}
+	err = a.repo.UndoRenewal(c.Request.Context(), id, renewalID)
+	if errors.Is(err, store.ErrConflict) {
+		fail(c, http.StatusConflict, "只能撤销该项目最近一次续期")
+		return
+	}
+	if err != nil {
+		failedStore(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
