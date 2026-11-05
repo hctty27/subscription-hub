@@ -615,3 +615,16 @@ body { min-width: 320px; }
 .renewal-settle-option strong { font-size: 13px; color: #304462; }
 .renewal-settle-option small { font-size: 11px; color: #70809c; line-height: 1.6; }
 .renewal-payment-label { color: #22754c !important; font-weight: 650; }
+
+.renewal-undo {
+  display: inline-block;
+  margin-left: 8px;
+  border: 0;
+  border-radius: 5px;
+  padding: 4px 6px;
+  background: #edf0f6;
+  color: #687992;
+  font-size: 11px;
+}
+.renewal-undo:hover { background: #e3e9f3; }
+.renewal-undo:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
