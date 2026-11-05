@@ -83,12 +83,16 @@ func (a *api) updatePayment(c *gin.Context){
 	payment,ok:=a.readPayment(c);if !ok{return}
 	payment.ID=id
 	updated,err:=a.repo.UpdatePayment(c.Request.Context(),payment)
+	if errors.Is(err,store.ErrConflict){fail(c,http.StatusConflict,"此付款已关联已结算账期，不支持直接修改");return}
 	if err!=nil{failedStore(c,err);return}
 	c.JSON(http.StatusOK,updated)
 }
 func (a *api) deletePayment(c *gin.Context){
 	id,ok:=parseID(c);if !ok{return}
-	if err:=a.repo.DeletePayment(c.Request.Context(),id);err!=nil{failedStore(c,err);return}
+	if err:=a.repo.DeletePayment(c.Request.Context(),id);err!=nil{
+		if errors.Is(err,store.ErrConflict){fail(c,http.StatusConflict,"此付款已关联已结算账期，不支持直接删除");return}
+		failedStore(c,err);return
+	}
 	c.Status(http.StatusNoContent)
 }
 func (a *api) expenseReport(c *gin.Context){
