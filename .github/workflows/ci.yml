@@ -38,6 +38,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare development data directory
+        run: sh scripts/migrate-data-volumes.sh development
       - name: Build and start containers
         run: ADMIN_PASSWORD=ci-long-test-password-456 docker compose up -d --build
       - name: Verify HTTP services
@@ -66,7 +68,7 @@ jobs:
           curl -fsS -b /tmp/admin-cookies.txt http://127.0.0.1:8080/api/v1/auth/me \
             -o /tmp/me.json
           grep -q '"authenticated":true' /tmp/me.json
-      - name: Verify CRUD and persistent volume
+      - name: Verify CRUD and persistent bind mount
         run: |
           curl -fsS -b /tmp/admin-cookies.txt -X POST http://127.0.0.1:8080/api/v1/items \
             -H 'Content-Type: application/json' -H 'X-CSRF-Token: 1' \
@@ -82,6 +84,7 @@ jobs:
           done
           curl -fsS -b /tmp/admin-cookies.txt 'http://127.0.0.1:8080/api/v1/items?limit=10' -o /tmp/items.json
           grep -q '"name":"CI 订阅"' /tmp/items.json
+          docker run --rm -v "$PWD/data-dev:/check:ro" alpine:3.22 sh -c 'test -f /check/subscription-hub.db'
       - name: Show logs on failure
         if: failure()
         run: docker compose logs --no-color
@@ -104,6 +107,9 @@ jobs:
           docker compose --env-file .env.production.example -f compose.production.yaml config --quiet
           sh -n scripts/backup-offsite.sh
           sh -n scripts/smoke-production.sh
+          sh -n scripts/migrate-data-volumes.sh
+      - name: Prepare production data directory
+        run: sh scripts/migrate-data-volumes.sh production
       - name: Build and start production containers
         run: docker compose --env-file .env.production.example -f compose.production.yaml up -d --build
       - name: Verify Nginx configuration, frontend, API, login and CSRF
@@ -117,9 +123,55 @@ jobs:
           sh scripts/backup-offsite.sh
           docker compose --env-file .env.production.example -f compose.production.yaml --profile backup run --rm --no-deps restic snapshots --json > /tmp/restic-snapshots.json
           grep -q 'subscription-hub' /tmp/restic-snapshots.json
+          docker run --rm -v "$PWD/data:/check:ro" alpine:3.22 sh -c '
+            test -f /check/subscription-hub.db
+            test -d /check/backups
+            test -n "$(find /check/backups -type f -print -quit)"
+          '
       - name: Show production logs on failure
         if: failure()
         run: docker compose --env-file .env.production.example -f compose.production.yaml logs --no-color
       - name: Stop production containers
         if: always()
         run: docker compose --env-file .env.production.example -f compose.production.yaml down
+
+  data-migration:
+    runs-on: ubuntu-latest
+    env:
+      SUBSCRIPTION_ENV_FILE: .env.production.example
+    steps:
+      - uses: actions/checkout@v4
+      - name: Seed legacy named volumes
+        run: |
+          docker volume create subscription-hub-prod_subscription_data
+          docker volume create subscription-hub_subscription_data
+          docker run --rm -v subscription-hub-prod_subscription_data:/old alpine:3.22 sh -c '
+            mkdir -p /old/backups
+            printf old-prod > /old/subscription-hub.db
+            printf snapshot > /old/backups/previous.db
+            printf wal > /old/subscription-hub.db-wal
+          '
+          docker run --rm -v subscription-hub_subscription_data:/old alpine:3.22 sh -c '
+            printf old-dev > /old/subscription-hub.db
+          '
+      - name: Verify migration preserves database and backups
+        run: |
+          sh scripts/migrate-data-volumes.sh production
+          sh scripts/migrate-data-volumes.sh development
+          docker run --rm -v "$PWD/data:/check:ro" alpine:3.22 sh -c '
+            test "$(cat /check/subscription-hub.db)" = old-prod
+            test "$(cat /check/backups/previous.db)" = snapshot
+            test "$(cat /check/subscription-hub.db-wal)" = wal
+            test "$(stat -c %u /check)" = 10001
+            test "$(stat -c %u /check/subscription-hub.db)" = 10001
+          '
+          docker run --rm -v "$PWD/data-dev:/check:ro" alpine:3.22 sh -c '
+            test "$(cat /check/subscription-hub.db)" = old-dev
+            test "$(stat -c %u /check)" = 10001
+          '
+          if sh scripts/migrate-data-volumes.sh production; then
+            echo "迁移脚本没有拒绝非空数据目录" >&2
+            exit 1
+          fi
+          docker volume inspect subscription-hub-prod_subscription_data >/dev/null
+          docker volume inspect subscription-hub_subscription_data >/dev/null

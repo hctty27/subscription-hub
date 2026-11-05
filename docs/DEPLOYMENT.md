@@ -30,6 +30,8 @@ chmod 600 .env.production
 
 ## 二、部署 Nginx 和 API
 
+首次安装或从旧命名卷升级时，**先按第四节执行数据目录准备/迁移**，再运行：
+
 ```bash
 docker compose --env-file .env.production -f compose.production.yaml up -d --build
 docker compose --env-file .env.production -f compose.production.yaml ps
@@ -74,17 +76,45 @@ curl -fsS https://你的域名/api/v1/health
 
 然后在浏览器打开 `https://你的域名`，测试登录、续费数据和静态资源。确认 API、Cookie、HTTPS 及域名配置全部正常后再正式使用。
 
-## 四、数据持久化与迁移
+## 四、数据目录与旧命名卷迁移
 
-生产配置沿用 Compose 项目名 `subscription-hub-prod`，数据库位于容器内 `/data/subscription-hub.db`，由 **`subscription_data` 命名卷**持久化；快照位于相同数据卷的 `/data/backups`。
+所有 Docker Compose 数据均使用**项目目录绑定挂载**，开发和生产完全隔离：
 
-Docker 命名卷由 Docker 管理，**默认不保存在 `/home/project/subscription-hub` 项目目录下**。如果希望改为项目目录绑定挂载，需要另行规划权限与备份，不能直接把运行中的 WAL 数据库文件复制过去。
+```text
+/home/project/subscription-hub/
+├── data/                         # 生产数据，勿提交 Git
+│   ├── subscription-hub.db
+│   └── backups/
+├── data-dev/                     # 开发数据，勿提交 Git
+│   ├── subscription-hub.db
+│   └── backups/
+├── compose.yaml
+└── compose.production.yaml
+```
 
-从旧 Caddy 生产版切换至 Nginx 时，Compose 项目名和 `subscription_data` 卷均保持不变，数据库无需重新初始化。升级前应生成一致性快照并验证。旧 `caddy_data` / `caddy_config` 数据卷不会由本次改造自动删除，请在确认不再回滚 Caddy 后自行决定是否清理。
+`api` 和 `backend` 的容器内数据库路径仍然是 `/data/subscription-hub.db`，备份路径是 `/data/backups`。Restic 的生产备份服务只读取 `./data`，不会触碰 `./data-dev`。
 
-开发版 `compose.yaml` 使用不同的 Compose 项目和数据卷，**不会自动迁移到生产版**。
+**首次启动和从旧版升级都要先执行目录准备脚本，之后再启动新 Compose**：
 
-**切勿执行 `docker compose down -v`**，否则会删除生产数据库和本地备份。
+```bash
+cd /home/project/subscription-hub
+# 生产：要求已配置 .env.production；若有旧数据，先进行一致性快照后停止 API 并复制
+sh scripts/migrate-data-volumes.sh production
+# 开发：按需执行，与生产数据独立
+sh scripts/migrate-data-volumes.sh development
+```
+
+脚本执行规则：
+
+1. 生产默认查找 `subscription-hub-prod_subscription_data`；开发默认查找 `subscription-hub_subscription_data`。如果旧 Compose 使用了自定义项目名，可以通过 `OLD_VOLUME=旧卷名称` 显式指定；可用 `docker volume ls` 检查。
+2. 发现旧命名卷时，若 API 正在运行，先运行 `/app/backup` 创建 SQLite 一致性快照；随后停止相关 API，确认旧卷没有其他运行中的容器使用，再完整复制数据库、WAL 文件和备份。
+3. 目标目录**必须为空**。只要已有文件，脚本就会拒绝覆盖，避免误删或数据互相覆盖。如果项目原本已有 `data/` 文件，先核对内容并人工规划迁移。
+4. Docker 容器中的服务以 UID 10001 运行；脚本为目录设置正确的属主权限。新安装且没有旧卷时，脚本只准备空目录。
+5. 旧命名卷不会被删除；迁移后请检查业务数据与备份，确认无误再决定是否清理旧卷。
+
+脚本不会自动启动或重启服务。准备完成后，按照第二、三节的命令启动生产环境；开发环境使用 `docker compose up -d --build`。如果迁移意外中断，**不要启动新服务，也不要删除旧数据卷**；先检查目录内容，再决定如何重试。容器停机是保证 WAL 数据一致性的重要前提。
+
+`docker compose down -v` 不会删除项目绑定挂载目录，但**仍可能删除 Restic 等其他命名卷**；不要将其当作清理命令。由于生产数据已保存在项目目录下，宿主机磁盘损坏或误删仍会导致丢失，请务必配置异地备份。
 
 ## 五、加密异地备份（Restic）
 
