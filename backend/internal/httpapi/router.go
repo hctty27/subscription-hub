@@ -40,6 +40,18 @@ func NewRouter(repo *store.Store, loc *time.Location) *gin.Engine {
 	v1.POST("/items", a.createItem)
 	v1.PUT("/items/:id", a.updateItem)
 	v1.DELETE("/items/:id", a.deleteItem)
+	v1.GET("/payments", a.listPayments)
+	v1.POST("/payments", a.createPayment)
+	v1.PUT("/payments/:id", a.updatePayment)
+	v1.DELETE("/payments/:id", a.deletePayment)
+	v1.GET("/reports/expenses", a.expenseReport)
+	v1.GET("/reminder-rules", a.listReminderRules)
+	v1.POST("/reminder-rules", a.createReminderRule)
+	v1.PUT("/reminder-rules/:id", a.updateReminderRule)
+	v1.DELETE("/reminder-rules/:id", a.deleteReminderRule)
+	v1.GET("/notifications", a.listNotifications)
+	v1.POST("/notifications/:id/read", a.markNotificationRead)
+	v1.POST("/notifications/scan", a.scanNotifications)
 	return r
 }
 

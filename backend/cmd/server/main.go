@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	_ "time/tzdata"
 
 	"github.com/hctty27/subscription-hub/backend/internal/httpapi"
+	"github.com/hctty27/subscription-hub/backend/internal/reminder"
 	"github.com/hctty27/subscription-hub/backend/internal/store"
 )
 
@@ -34,6 +36,9 @@ func main() {
 		log.Fatalf("数据库初始化失败：%v", err)
 	}
 	defer repo.Close()
+	workerContext, cancelWorker := context.WithCancel(context.Background())
+	defer cancelWorker()
+	go reminder.Start(workerContext, repo, loc)
 
 	server := &http.Server{
 		Addr:              host + ":" + port,
