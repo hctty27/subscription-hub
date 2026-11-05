@@ -197,6 +197,10 @@ func (s *Store) UndoRenewal(ctx context.Context, itemID, renewalID int64) error 
 			updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE item_id=?`, due, itemID); err != nil {
 			return err
 		}
+		if _, err := tx.ExecContext(ctx, `UPDATE reminder_notifications SET read_at=NULL
+			WHERE item_id=? AND due_date=?`, itemID, due); err != nil {
+			return err
+		}
 	}
 	if _, err := tx.ExecContext(ctx, "DELETE FROM item_renewals WHERE id=? AND item_id=?", renewalID, itemID); err != nil {
 		return err
