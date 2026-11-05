@@ -1,6 +1,6 @@
 # V1 API（开发版）
 
-统一前缀：`/api/v1`。响应是 JSON，失败格式：`{"error":{"message":"中文错误信息"}}`。
+统一前缀：`/api/v1`。除 `/health`、`/auth/login` 外的管理接口要求管理员登录，写请求需通过 CSRF 校验。响应是 JSON，失败格式：`{"error":{"message":"中文错误信息"}}`。
 
 ## 分类
 
@@ -28,6 +28,9 @@ curl -X POST http://localhost:8080/api/v1/categories \
 | POST | `/items` | 新增 |
 | PUT | `/items/{id}` | 完整更新 |
 | DELETE | `/items/{id}` | 删除 |
+| POST | `/items/{id}/renew` | 原子记录付款并结算当前账期，过时或重复账期返回 409 |
+| GET | `/items/{id}/renewals` | 查看结算历史 |
+| DELETE | `/items/{id}/renewals/{renewalID}` | 撤销最近一次结算，保留实际付款 |
 
 新增示例（省略分类关联）：
 
@@ -51,10 +54,10 @@ curl -X POST http://localhost:8080/api/v1/items \
 | `first_due_date` | YYYY-MM-DD |
 | `notes` | 最长 500 个字符 |
 
-`next_due_date` 和 `days_until` 为服务端计算字段：正常状态会填充；暂停、取消状态不会产生续费日期。对于 `period_unit=none` 的资源，即使到期日已过去仍返回该日期，`days_until` 为负数，便于展示到期状态。所有日期基于服务端 `APP_TIMEZONE` 的当前自然日计算。
+`next_due_date`、`days_until`、`renewal_completed` 为服务端返回的只读字段：正常状态从持久化的待结算账期计算，未结算的逾期日期不会自动跳过；暂停、取消状态不返回待续费日期。一次性资源结算后 `renewal_completed=true` 且无下次到期日。所有日期基于服务端 `APP_TIMEZONE` 的当前自然日计算。
 
 列表默认返回最多 200 条，可通过 `limit`（1-500）和 `offset` 分页；前端当前仅载入前 500 条。
 
 ## 当前限制
 
-暂不支持鉴权、付款历史、自动提醒、币种换算和多用户。禁止将此开发接口开放至公网。
+当前支持管理员会话鉴权、付款历史、到期提醒与实际续费结算。暂不支持币种换算、多用户、自动扣款或退款。公网部署需按部署和安全指南配置，参见 [财务账单与续期接口](FINANCE.md)。
