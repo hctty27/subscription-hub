@@ -3,7 +3,12 @@ services:
     build:
       context: ./backend
     environment:
+      HOST: 0.0.0.0
       PORT: "8080"
+      APP_TIMEZONE: Asia/Shanghai
+      DB_PATH: /data/subscription-hub.db
+    volumes:
+      - subscription_data:/data
     ports:
       - "127.0.0.1:8080:8080"
     restart: unless-stopped
@@ -18,3 +23,6 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+volumes:
+  subscription_data:

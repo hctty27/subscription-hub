@@ -1,31 +1,45 @@
 # Subscription Hub
 
-> 轻量、开源的订阅与资源到期管理平台（开发中）。
+> Open-source subscription and resource lifecycle manager (V1 in progress).
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Subscription Hub helps individuals and developers track recurring subscriptions, VPS and domain expirations, payment history, and renewal reminders in one self-hosted dashboard.
+Manage recurring services, VPS subscriptions, domains, and other upcoming renewals in one self-hosted dashboard.
 
-## Status
+## Implemented in V1 phase 1
 
-**Early development / bootstrap.** The repository currently contains a runnable API health check and a frontend starter. Subscription billing, storage, and notifications are planned, not yet implemented.
+- SQLite persistence with schema versioning
+- Category management and subscription/resource CRUD
+- Day, month, and year recurrence anchored to the original renewal date
+- Month-end clamping and leap-year handling
+- Basic statuses: active, paused, canceled
+- Responsive Vue interface for browsing, creating, editing and deleting records
+- Data persistence through a Docker volume
+
+**Not implemented yet:** authentication, payment transactions, automatic reminders, backups, AI, MCP. This is a **local-development preview**, not suitable for public internet access.
 
 ## Technology
 
-- Backend: Go + Gin
+- Backend: Go 1.26 + Gin + modernc.org/sqlite (pure Go)
 - Frontend: Vue 3 + TypeScript + Vite
-- Planned persistence: SQLite; MySQL support later
-- Deployment: Docker Compose (development bootstrap)
+- Storage: SQLite (WAL mode)
+- Deployment: Docker Compose for local development
 
 ## Quick start
 
-### Requirements
+### Docker Compose (recommended)
 
-- Go 1.23+
-- Node.js 22.18+ and npm
-- Docker with Compose (optional)
+```bash
+docker compose up --build
+```
+
+Open http://localhost:5173. The SQLite database is stored in the named Docker volume `subscription_data`. `docker compose down` keeps it, but `docker compose down -v` permanently deletes the volume.
 
 ### Local development
+
+Requires Go 1.26+, Node.js 22.18+, and npm.
+
+Backend:
 
 ```bash
 cd backend
@@ -41,49 +55,30 @@ npm install
 npm run dev
 ```
 
-Visit http://localhost:5173. The frontend proxies /api to the backend on port 8080.
+Open http://localhost:5173. Backend listens on `127.0.0.1:8080` by default.
 
-### Docker Compose
+Configuration:
 
-```bash
-docker compose up --build
-```
+| Variable | Default | Description |
+|---|---|---|
+| `HOST` | `127.0.0.1` | API binding address |
+| `PORT` | `8080` | HTTP port |
+| `DB_PATH` | `./data/subscription-hub.db` | SQLite file path |
+| `APP_TIMEZONE` | `Asia/Shanghai` | Calendar timezone for next-due calculations |
 
-Visit http://localhost:5173. This bootstrap Compose configuration is for **development**, not a hardened public deployment.
+The Docker Compose backend binds to `0.0.0.0` **inside the container**, but is published on `127.0.0.1` on the Docker host.
 
-### Smoke test
+## API
 
-```bash
-curl http://localhost:8080/api/v1/health
-```
-
-Expected response: `{"status":"ok"}`.
+See [docs/API.md](docs/API.md) for request examples and response formats.
 
 ## Roadmap
 
-- [ ] Subscription and resource CRUD (VPS, domains, memberships)
-- [ ] Recurrence rules and next-renewal calculation
-- [ ] Payment records and expense dashboard
-- [ ] Notification adapters (SMTP, Telegram, Bark, Webhook)
-- [ ] SQLite persistence, schema migrations and backups
-- [ ] Authentication, authorization and rate limiting
-- [ ] Currency conversion and historical reporting
-- [ ] AI import and MCP integration
-
-See [docs/ROADMAP.md](docs/ROADMAP.md) for scope and acceptance criteria.
-
-## Repository structure
-
-```text
-backend/          Go API
-frontend/         Vue 3 app
-docs/             Architecture and roadmap
-.github/workflows/ Continuous integration
-```
+See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Security
 
-Do not expose this starter directly to the public internet. Authentication, protected data storage and production deployment safeguards have not been implemented yet. Do not commit secrets.
+The API has **no authentication**. Do **not** expose port 8080 or the frontend proxy to untrusted networks. Back up the database before upgrade or removal. Avoid storing API secrets in notes.
 
 ## License
 
