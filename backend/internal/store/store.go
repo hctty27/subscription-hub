@@ -90,10 +90,10 @@ func (s *Store) migrate(ctx context.Context) error {
 	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		return err
 	}
-	if version > 1 {
+	if version > 2 {
 		return fmt.Errorf("数据库版本 %d 高于当前程序支持的版本", version)
 	}
-	if version == 1 {
+	if version == 2 {
 		return nil
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -129,6 +129,45 @@ func (s *Store) migrate(ctx context.Context) error {
 	for _, stmt := range stmts {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("创建数据库表失败：%w", err)
+		}
+	}
+	if version < 2 {
+		upgrade := []string{
+			`CREATE TABLE IF NOT EXISTS payments (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE RESTRICT,
+				amount_minor INTEGER NOT NULL CHECK(amount_minor > 0 AND amount_minor <= 1000000000000),
+				currency TEXT NOT NULL,
+				paid_date TEXT NOT NULL,
+				notes TEXT NOT NULL DEFAULT '',
+				created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+			)`,
+			"CREATE INDEX IF NOT EXISTS idx_payments_paid_date ON payments(paid_date)",
+			"CREATE INDEX IF NOT EXISTS idx_payments_item_id ON payments(item_id)",
+			`CREATE TABLE IF NOT EXISTS reminder_rules (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+				days_before INTEGER NOT NULL CHECK(days_before BETWEEN 0 AND 30),
+				enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0,1)),
+				UNIQUE(item_id, days_before)
+			)`,
+			`CREATE TABLE IF NOT EXISTS reminder_notifications (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				rule_id INTEGER NOT NULL REFERENCES reminder_rules(id) ON DELETE CASCADE,
+				item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+				due_date TEXT NOT NULL,
+				days_before INTEGER NOT NULL,
+				read_at TEXT,
+				created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+				UNIQUE(rule_id, due_date)
+			)`,
+			"CREATE INDEX IF NOT EXISTS idx_notifications_read ON reminder_notifications(read_at, id)",
+			"PRAGMA user_version = 2",
+		}
+		for _, stmt := range upgrade {
+			if _, err := tx.ExecContext(ctx, stmt); err != nil {
+				return fmt.Errorf("升级数据库到 V2 失败：%w", err)
+			}
 		}
 	}
 	return tx.Commit()
@@ -301,7 +340,7 @@ func (s *Store) UpdateItem(ctx context.Context, item Item) (Item, error) {
 func (s *Store) DeleteItem(ctx context.Context, id int64) error {
 	res, err := s.db.ExecContext(ctx, "DELETE FROM items WHERE id = ?", id)
 	if err != nil {
-		return err
+		return constraintError(err)
 	}
 	affected, err := res.RowsAffected()
 	if err != nil {
