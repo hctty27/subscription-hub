@@ -90,10 +90,10 @@ func (s *Store) migrate(ctx context.Context) error {
 	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		return err
 	}
-	if version > 2 {
+	if version > 3 {
 		return fmt.Errorf("数据库版本 %d 高于当前程序支持的版本", version)
 	}
-	if version == 2 {
+	if version == 3 {
 		return nil
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -101,6 +101,7 @@ func (s *Store) migrate(ctx context.Context) error {
 		return err
 	}
 	defer tx.Rollback()
+	if version < 1 {
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS categories (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -130,6 +131,7 @@ func (s *Store) migrate(ctx context.Context) error {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("创建数据库表失败：%w", err)
 		}
+	}
 	}
 	if version < 2 {
 		upgrade := []string{
@@ -167,6 +169,26 @@ func (s *Store) migrate(ctx context.Context) error {
 		for _, stmt := range upgrade {
 			if _, err := tx.ExecContext(ctx, stmt); err != nil {
 				return fmt.Errorf("升级数据库到 V2 失败：%w", err)
+			}
+		}
+	}
+	if version < 3 {
+		upgrade := []string{
+			`CREATE TABLE IF NOT EXISTS admin_credentials (
+				id INTEGER PRIMARY KEY CHECK(id = 1),
+				salt BLOB NOT NULL,
+				password_hash BLOB NOT NULL
+			)`,
+			`CREATE TABLE IF NOT EXISTS admin_sessions (
+				token_hash TEXT PRIMARY KEY,
+				expires_at INTEGER NOT NULL
+			)`,
+			"CREATE INDEX IF NOT EXISTS idx_admin_sessions_expiry ON admin_sessions(expires_at)",
+			"PRAGMA user_version = 3",
+		}
+		for _, statement := range upgrade {
+			if _, err := tx.ExecContext(ctx, statement); err != nil {
+				return fmt.Errorf("升级数据库到 V3 失败：%w", err)
 			}
 		}
 	}
