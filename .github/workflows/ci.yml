@@ -108,6 +108,7 @@ jobs:
         run: |
           sh scripts/compose-prod.sh config --quiet
           sh -n scripts/compose-prod.sh
+          test -x scripts/compose-prod.sh
           sh -n scripts/backup-offsite.sh
           sh -n scripts/smoke-production.sh
           sh -n scripts/migrate-data-volumes.sh
