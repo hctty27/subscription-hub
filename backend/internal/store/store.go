@@ -90,10 +90,10 @@ func (s *Store) migrate(ctx context.Context) error {
 	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		return err
 	}
-	if version > 3 {
+	if version > 4 {
 		return fmt.Errorf("数据库版本 %d 高于当前程序支持的版本", version)
 	}
-	if version == 3 {
+	if version == 4 {
 		return nil
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -190,6 +190,27 @@ func (s *Store) migrate(ctx context.Context) error {
 			if _, err := tx.ExecContext(ctx, statement); err != nil {
 				return fmt.Errorf("升级数据库到 V3 失败：%w", err)
 			}
+		}
+	}
+	if version < 4 {
+		upgrade := []string{
+			`CREATE TABLE IF NOT EXISTS notification_deliveries (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				notification_id INTEGER NOT NULL REFERENCES reminder_notifications(id) ON DELETE CASCADE,
+				channel TEXT NOT NULL CHECK(channel IN ('smtp','telegram','bark')),
+				status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','retry','sent','failed')),
+				attempts INTEGER NOT NULL DEFAULT 0 CHECK(attempts >= 0),
+				next_attempt_at INTEGER NOT NULL DEFAULT 0,
+				last_error TEXT NOT NULL DEFAULT '',
+				sent_at TEXT,
+				created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+				UNIQUE(notification_id,channel)
+			)`,
+			"CREATE INDEX IF NOT EXISTS idx_notification_deliveries_due ON notification_deliveries(status,next_attempt_at)",
+			"PRAGMA user_version = 4",
+		}
+		for _,statement:=range upgrade {
+			if _,err:=tx.ExecContext(ctx,statement);err!=nil{return fmt.Errorf("升级数据库到 V4 失败：%w",err)}
 		}
 	}
 	return tx.Commit()
