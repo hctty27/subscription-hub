@@ -18,9 +18,16 @@ interface Item {
   first_due_date: string
   next_due_date: string
   days_until: number
+  renewal_completed: boolean
   notes: string
 }
 interface Category { id: number; name: string; color: string }
+interface Renewal {
+  id: number
+  payment_id: number
+  due_date: string
+  next_due_date: string
+}
 interface Payment {
   id: number
   item_id: number
@@ -39,6 +46,8 @@ const emit = defineEmits<{
 
 const dialog = ref<HTMLElement | null>(null)
 const payments = ref<Payment[]>([])
+const renewals = ref<Renewal[]>([])
+const settleCurrentCycle = ref(false)
 const loading = ref(false)
 const saving = ref(false)
 const historyError = ref('')
@@ -87,8 +96,12 @@ async function loadPayments(): Promise<void> {
   loading.value = true
   historyError.value = ''
   try {
-    const result = await api<{ items: Payment[] }>('/payments?item_id=' + props.item.id + '&limit=100')
-    payments.value = result.items
+    const [paymentData, renewalData] = await Promise.all([
+      api<{ items: Payment[] }>('/payments?item_id=' + props.item.id + '&limit=100'),
+      api<{ items: Renewal[] }>('/items/' + props.item.id + '/renewals'),
+    ])
+    payments.value = paymentData.items
+    renewals.value = renewalData.items
   } catch (reason) {
     historyError.value = messageOf(reason)
   } finally {
@@ -103,6 +116,9 @@ const statusLabel = computed(() => ({
   paused: '已暂停',
   canceled: '已取消',
 }[props.item.status]))
+const renewalByPayment = computed(() => new Map(renewals.value.map(entry => [entry.payment_id, entry.due_date])))
+const canSettle = computed(() => props.item.status === 'active' && !!props.item.next_due_date &&
+  !props.item.renewal_completed)
 const recentPayments = computed(() => [...payments.value]
   .sort((a, b) => b.paid_date.localeCompare(a.paid_date) || b.id - a.id)
   .slice(0, 8))
@@ -117,6 +133,7 @@ function beginPayment(): void {
   amountText.value = (props.item.amount_minor / 10 ** digits(props.item.currency)).toFixed(digits(props.item.currency))
   paymentDate.value = todayString()
   paymentNotes.value = ''
+  settleCurrentCycle.value = canSettle.value
   showPaymentForm.value = true
 }
 watch(() => props.startWithPayment, enabled => {
@@ -128,13 +145,19 @@ async function savePayment(): Promise<void> {
   saving.value = true
   formError.value = ''
   try {
-    await api('/payments', 'POST', {
-      item_id: props.item.id,
+    const payment = {
       amount_minor: toMinor(amountText.value, props.item.currency),
       currency: props.item.currency,
       paid_date: paymentDate.value,
       notes: paymentNotes.value,
-    })
+    }
+    if (settleCurrentCycle.value && canSettle.value) {
+      await api('/items/' + props.item.id + '/renew', 'POST', {
+        due_date: props.item.next_due_date, ...payment,
+      })
+    } else {
+      await api('/payments', 'POST', { item_id: props.item.id, ...payment })
+    }
     showPaymentForm.value = false
     emit('payment-created')
     await loadPayments()
@@ -172,10 +195,10 @@ function close(): void {
       <template v-if="!showPaymentForm">
         <div class="detail-price">{{ formatAmount(item.amount_minor, item.currency) }} <small>/ {{ periodLabel }}</small></div>
         <div class="detail-facts">
-          <div><span>下次到期</span><strong>{{ item.next_due_date || '无续费计划' }}</strong></div>
+          <div><span>当前待处理账期</span><strong>{{ item.renewal_completed ? '已结算' : item.next_due_date || '无续费计划' }}</strong></div>
           <div><span>起始续费日期</span><strong>{{ item.first_due_date }}</strong></div>
           <div><span>分类</span><strong>{{ category?.name || '未分类' }}</strong></div>
-          <div><span>剩余天数</span><strong>{{ item.status !== 'active' ? '—' : item.days_until < 0 ? '已过期 ' + Math.abs(item.days_until) + ' 天' : item.days_until === 0 ? '今天到期' : item.days_until + ' 天' }}</strong></div>
+          <div><span>账期状态</span><strong>{{ item.renewal_completed ? '已完成' : item.status !== 'active' ? '已暂停处理' : item.days_until < 0 ? '逾期 ' + Math.abs(item.days_until) + ' 天' : item.days_until === 0 ? '今天到期' : '待续期 · ' + item.days_until + ' 天后' }}</strong></div>
         </div>
         <div v-if="item.notes" class="detail-notes"><strong>备注</strong><p>{{ item.notes }}</p></div>
         <div class="detail-actions">
@@ -191,7 +214,10 @@ function close(): void {
         <p v-else-if="payments.length === 0" class="detail-message">暂无付款记录</p>
         <div v-else class="detail-history">
           <div v-for="payment in recentPayments" :key="payment.id" class="detail-history-row">
-            <div><strong>{{ payment.paid_date }}</strong><small v-if="payment.notes">{{ payment.notes }}</small></div>
+            <div><strong>{{ payment.paid_date }}</strong>
+              <small v-if="renewalByPayment.has(payment.id)" class="renewal-payment-label">已结算账期 {{ renewalByPayment.get(payment.id) }}</small>
+              <small v-if="payment.notes">{{ payment.notes }}</small>
+            </div>
             <strong>{{ formatAmount(payment.amount_minor, payment.currency) }}</strong>
           </div>
           <p v-if="payments.length > 8" class="detail-message">只显示最近 8 笔，可到「账单」查看全部记录。</p>
@@ -213,11 +239,18 @@ function close(): void {
         <label>备注
           <textarea v-model="paymentNotes" class="field" rows="3" maxlength="500" placeholder="可选"></textarea>
         </label>
-        <p class="detail-message">记录付款不会自动调整下次到期日期。如续费周期发生变化，请编辑项目的续费日期。</p>
+        <label v-if="canSettle" class="renewal-settle-option">
+          <input v-model="settleCurrentCycle" type="checkbox" />
+          <span>
+            <strong>同时确认本期续期</strong>
+            <small>结算到期日 {{ item.next_due_date }}，完成后推进到下一账期。</small>
+          </span>
+        </label>
+        <p class="detail-message">{{ settleCurrentCycle && canSettle ? '付款与账期结算会同步保存，避免重复续期。' : '仅记录实际付款，不改变当前待处理账期。' }}</p>
         <p v-if="formError" class="detail-message detail-error" role="alert">{{ formError }}</p>
         <div class="detail-actions">
           <button class="button secondary" type="button" @click="close" :disabled="saving">返回详情</button>
-          <button class="button primary" type="submit" :disabled="saving">{{ saving ? '保存中…' : '确认付款' }}</button>
+          <button class="button primary" type="submit" :disabled="saving">{{ saving ? '保存中…' : settleCurrentCycle && canSettle ? '付款并确认续期' : '记录付款' }}</button>
         </div>
       </form>
     </section>
