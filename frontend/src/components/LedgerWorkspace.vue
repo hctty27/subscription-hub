@@ -22,6 +22,17 @@ interface Total { currency: string; amount_minor: number; count: number }
 interface Trend { month: string; currency: string; amount_minor: number; count: number }
 interface Report { month: string; totals: Total[]; trend: Trend[] }
 interface Rule { id: number; item_id: number; item_name: string; days_before: number; enabled: boolean }
+interface Delivery {
+  id: number
+  item_name: string
+  due_date: string
+  channel: string
+  status: 'pending' | 'retry' | 'sent' | 'failed'
+  attempts: number
+  next_attempt_at: number
+  last_error: string
+  sent_at: string | null
+}
 interface Notice {
   id: number
   item_name: string
@@ -36,6 +47,8 @@ const items = ref<Item[]>([])
 const payments = ref<Payment[]>([])
 const rules = ref<Rule[]>([])
 const notices = ref<Notice[]>([])
+const deliveryLogs = ref<Delivery[]>([])
+const configuredChannels = ref<string[]>([])
 const unreadCount = ref(0)
 const report = ref<Report>({ month: '', totals: [], trend: [] })
 const busy = ref(false)
@@ -96,14 +109,18 @@ async function load() {
     } else if (props.page === 'reports') {
       report.value = await api<Report>('/reports/expenses?month=' + reportMonth.value)
     } else {
-      const [ruleData, noticeData] = await Promise.all([
+      const [ruleData, noticeData, deliveryData, channelData] = await Promise.all([
         api<{ items: Rule[] }>('/reminder-rules'),
         api<{ items: Notice[]; unread_count: number }>('/notifications?limit=500' +
           (showUnreadOnly.value ? '&unread=true' : '')),
+        api<{ items: Delivery[] }>('/notification-deliveries?limit=100'),
+        api<{ items: string[] }>('/notification-channels'),
       ])
       rules.value = ruleData.items
       notices.value = noticeData.items
       unreadCount.value = noticeData.unread_count
+      deliveryLogs.value = deliveryData.items
+      configuredChannels.value = channelData.items
     }
   } catch (reason) {
     error.value = messageOf(reason)
@@ -337,7 +354,37 @@ async function scan() {
           </div>
           <p v-if="notices.length === 0 && !busy" class="ledger-empty">没有站内提醒</p>
         </div>
-        <p class="ledger-note">当前为站内消息，需打开系统查看。邮件、Bark、Telegram 等主动推送将在后续版本支持。</p>
+        <p class="ledger-note">提醒会保留在站内；如果通过服务端环境变量启用外部渠道，系统也会主动推送。</p>
+      </section>
+      <section class="ledger-panel">
+        <div class="ledger-panel-head">
+          <div><h2>外部通知渠道</h2><p>通过服务端环境变量配置，密钥不会返回给前端。</p></div>
+          <button type="button" class="ledger-secondary" @click="load">刷新状态</button>
+        </div>
+        <div v-if="configuredChannels.length" class="ledger-channel-tags">
+          <span v-for="channel in configuredChannels" :key="channel">{{ channel.toUpperCase() }}</span>
+        </div>
+        <p v-else class="ledger-note">尚未配置 SMTP、Telegram 或 Bark。站内提醒仍可正常使用。</p>
+        <div class="ledger-panel-head ledger-delivery-heading">
+          <div><h2>最近发送记录</h2><p>失败任务最多自动尝试 4 次，状态与错误保存在 SQLite。</p></div>
+        </div>
+        <div class="ledger-table-scroll">
+          <table class="ledger-table">
+            <thead><tr><th>项目</th><th>渠道</th><th>状态</th><th>尝试次数</th><th>最近结果</th></tr></thead>
+            <tbody>
+              <tr v-for="entry in deliveryLogs" :key="entry.id">
+                <td class="ledger-strong">{{ entry.item_name }}<small class="ledger-muted"> · {{ entry.due_date }}</small></td>
+                <td>{{ entry.channel.toUpperCase() }}</td>
+                <td><span class="ledger-rule-state" :class="{ off: entry.status !== 'sent' }">{{ {
+                  pending: '待发送', retry: '待重试', sent: '已发送', failed: '失败'
+                }[entry.status] }}</span></td>
+                <td>{{ entry.attempts }}</td>
+                <td class="ledger-muted">{{ entry.last_error || (entry.sent_at ? '发送成功' : '—') }}</td>
+              </tr>
+              <tr v-if="deliveryLogs.length === 0 && !busy"><td colspan="5" class="ledger-empty">暂无外部通知记录</td></tr>
+            </tbody>
+          </table>
+        </div>
       </section>
     </template>
 
