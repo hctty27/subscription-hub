@@ -495,3 +495,6 @@ body { min-width: 320px; }
   .mobile-item-actions { flex-wrap: wrap; }
   .mobile-item-actions button { min-width: 0; font-size: 12px; }
 }
+
+.settings-account { margin-top: 17px; }
+.settings-account .button { margin-top: 16px; }
