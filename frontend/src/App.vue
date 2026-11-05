@@ -33,6 +33,7 @@ interface Item {
   first_due_date: string
   next_due_date: string
   days_until: number
+  renewal_completed: boolean
   notes: string
 }
 
@@ -161,7 +162,7 @@ const activeSubscriptions = computed(() => items.value.filter(item =>
 const activeResources = computed(() => items.value.filter(item =>
   item.kind === 'resource' && item.status === 'active').length)
 const upcoming = computed(() => items.value.filter(item =>
-  item.status === 'active' && item.next_due_date && item.days_until >= 0 && item.days_until <= 30))
+  item.status === 'active' && item.next_due_date && item.days_until <= 30))
 const urgentDue = computed(() => upcoming.value.filter(item => item.days_until <= 7).length)
 const upcomingSorted = computed(() => items.value
   .filter(item => item.status === 'active' && item.next_due_date)
@@ -481,14 +482,14 @@ onMounted(checkLogin)
           <small>包括 VPS、域名等</small>
         </div>
         <div class="metric">
-          <span>未来 30 天到期</span>
+          <span>待处理账期（30天内及逾期）</span>
           <strong>{{ upcoming.length }}</strong>
           <small>需要留意的续费项目</small>
         </div>
         <div class="metric metric-urgent">
-          <span>未来 7 天到期</span>
+          <span>逾期或 7 天内到期</span>
           <strong>{{ urgentDue }}</strong>
-          <small>优先处理临近账单</small>
+          <small>包括未结算的逾期账单</small>
         </div>
       </section>
 
@@ -514,7 +515,7 @@ onMounted(checkLogin)
       <section v-if="page === 'overview'" class="content-grid">
         <article class="panel">
           <div class="panel-heading">
-            <h2>临近到期</h2>
+            <h2>待处理续费</h2>
             <span>按日期排序</span>
           </div>
           <p v-if="busy" class="empty-message">正在读取数据…</p>
@@ -533,7 +534,7 @@ onMounted(checkLogin)
               <div class="due-right">
                 <strong>{{ formatAmount(item.amount_minor, item.currency) }}</strong>
                 <span :class="{ urgent: item.days_until <= 7 }">
-                  {{ item.days_until < 0 ? '已到期' : item.days_until === 0 ? '今天到期' : item.days_until + ' 天后' }}
+                  {{ item.days_until < 0 ? '逾期 ' + Math.abs(item.days_until) + ' 天' : item.days_until === 0 ? '今天到期' : item.days_until + ' 天后' }}
                 </span>
                 <button type="button" class="due-pay" @click="recordPayment(item)">记录付款</button>
               </div>
@@ -620,7 +621,7 @@ onMounted(checkLogin)
             <div class="mobile-item-price">{{ formatAmount(item.amount_minor, item.currency) }}</div>
             <div class="mobile-item-meta">
               <span>{{ periodLabel(item) }}</span>
-              <span>{{ item.next_due_date ? '下次到期 ' + item.next_due_date : '无到期日' }}</span>
+              <span>{{ item.renewal_completed ? '已完成结算' : item.next_due_date ? '待处理到期日 ' + item.next_due_date : '无到期日' }}</span>
             </div>
             <div class="mobile-item-actions">
               <button v-if="item.status === 'active'" type="button" @click="recordPayment(item)">记录付款</button>
@@ -679,7 +680,7 @@ onMounted(checkLogin)
     <ItemDetails v-if="selectedItem" :item="selectedItem" :categories="categories"
       :start-with-payment="initialDetailPaymentID === selectedItem.id"
       @close="selectedItem = null; initialDetailPaymentID = null" @edit="editFromDetails"
-      @payment-created="loadMonthExpenses" />
+      @payment-created="reload" />
 
     <div v-if="showEditor" class="modal-backdrop" @click.self="showEditor = false">
       <form class="modal" role="dialog" aria-modal="true" :aria-label="editingID === null ? '新增记录' : '编辑记录'" @submit.prevent="saveItem">
