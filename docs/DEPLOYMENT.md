@@ -66,7 +66,6 @@ sh scripts/compose-prod.sh config
 3. 确认备份无误、私有配置保存完成，再清理旧文件的 Git 本地改动，执行 `git pull --ff-only`。**不要未经核对直接运行 `git restore` 或 `git reset --hard`。** 若 Git 提示冲突，先手动处理。
 4. 更新后执行 `sh scripts/compose-prod.sh config --quiet` 并检查 `sh scripts/compose-prod.sh config` 的挂载、端口和网络，再进行部署；旧数据库位于 `data/`，本改造不迁移数据。
 
-
 ## 二、部署 Nginx 和 API
 
 首次安装或从旧命名卷升级时，**先按第四节执行数据目录准备/迁移**，再运行：
@@ -101,7 +100,7 @@ curl -fsS http://127.0.0.1:18080/api/v1/health
 
 ### 方式 B：已在宿主机安装 cloudflared
 
-不启动 `tunnel` profile，使用前述 `docker compose ... up -d --build` 启动网站。
+不启动 `tunnel` profile，使用 `sh scripts/compose-prod.sh up -d --build` 启动网站。
 
 将 Tunnel 的 Published application Service URL 设置为 **`http://127.0.0.1:18080`**，使用宿主机现有的 cloudflared 服务。注意：宿主机上的 `localhost` 与 Docker 容器中的 `localhost` 不同。
 
