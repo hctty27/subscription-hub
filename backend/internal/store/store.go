@@ -44,6 +44,7 @@ type Item struct {
 	UpdatedAt    string `json:"updated_at"`
 	NextDueDate  string `json:"next_due_date"`
 	DaysUntil    int    `json:"days_until"`
+	RenewalCompleted bool `json:"renewal_completed"`
 }
 
 const itemColumns = "id, category_id, name, kind, status, amount_minor, currency, period_unit, period_count, first_due_date, notes, created_at, updated_at"
@@ -90,10 +91,10 @@ func (s *Store) migrate(ctx context.Context) error {
 	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
 		return err
 	}
-	if version > 4 {
+	if version > 5 {
 		return fmt.Errorf("数据库版本 %d 高于当前程序支持的版本", version)
 	}
-	if version == 4 {
+	if version == 5 {
 		return nil
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -211,6 +212,32 @@ func (s *Store) migrate(ctx context.Context) error {
 		}
 		for _,statement:=range upgrade {
 			if _,err:=tx.ExecContext(ctx,statement);err!=nil{return fmt.Errorf("升级数据库到 V4 失败：%w",err)}
+		}
+	}
+	if version < 5 {
+		upgrade := []string{
+			`CREATE TABLE IF NOT EXISTS item_renewal_state (
+				item_id INTEGER PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+				due_date TEXT NOT NULL,
+				completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN (0,1)),
+				updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+			)`,
+			`CREATE TABLE IF NOT EXISTS item_renewals (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+				due_date TEXT NOT NULL,
+				payment_id INTEGER NOT NULL UNIQUE REFERENCES payments(id) ON DELETE RESTRICT,
+				next_due_date TEXT NOT NULL,
+				created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+				UNIQUE(item_id,due_date)
+			)`,
+			"CREATE INDEX IF NOT EXISTS idx_item_renewals_item ON item_renewals(item_id,id DESC)",
+			"PRAGMA user_version = 5",
+		}
+		for _, statement := range upgrade {
+			if _, err := tx.ExecContext(ctx, statement); err != nil {
+				return fmt.Errorf("升级数据库到 V5 失败：%w", err)
+			}
 		}
 	}
 	return tx.Commit()
@@ -361,7 +388,19 @@ func (s *Store) CreateItem(ctx context.Context, item Item) (Item, error) {
 }
 
 func (s *Store) UpdateItem(ctx context.Context, item Item) (Item, error) {
-	res, err := s.db.ExecContext(ctx, `UPDATE items SET
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Item{}, err
+	}
+	defer tx.Rollback()
+	old, err := scanItem(tx.QueryRowContext(ctx, "SELECT "+itemColumns+" FROM items WHERE id=?", item.ID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Item{}, ErrNotFound
+	}
+	if err != nil {
+		return Item{}, err
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE items SET
 		category_id=?, name=?, kind=?, status=?, amount_minor=?, currency=?, period_unit=?,
 		period_count=?, first_due_date=?, notes=?, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 		WHERE id=?`,
@@ -370,12 +409,14 @@ func (s *Store) UpdateItem(ctx context.Context, item Item) (Item, error) {
 	if err != nil {
 		return Item{}, constraintError(err)
 	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return Item{}, err
+	if old.Kind != item.Kind || old.PeriodUnit != item.PeriodUnit ||
+		old.PeriodCount != item.PeriodCount || old.FirstDueDate != item.FirstDueDate {
+		if _, err := tx.ExecContext(ctx, "DELETE FROM item_renewal_state WHERE item_id=?", item.ID); err != nil {
+			return Item{}, err
+		}
 	}
-	if affected == 0 {
-		return Item{}, ErrNotFound
+	if err := tx.Commit(); err != nil {
+		return Item{}, err
 	}
 	return s.GetItem(ctx, item.ID)
 }
