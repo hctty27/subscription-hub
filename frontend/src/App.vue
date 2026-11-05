@@ -37,7 +37,7 @@ interface Item {
   notes: string
 }
 
-type ItemDraft = Omit<Item, 'id' | 'next_due_date' | 'days_until' | 'amount_minor'>
+type ItemDraft = Omit<Item, 'id' | 'next_due_date' | 'days_until' | 'amount_minor' | 'renewal_completed'>
 
 const page = ref<Page>('overview')
 const initialDetailPaymentID = ref<number | null>(null)
