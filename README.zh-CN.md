@@ -14,7 +14,7 @@
 - 每天 03:00 自动创建 SQLite 一致性备份，默认保留最近 7 份；支持登录后手动备份
 - SMTP、Telegram Bot、Bark 主动通知适配器；SQLite 持久化投递、最多 4 次尝试及发送日志
 
-## 首次启动
+## 首次启动（开发环境）
 
 首次运行必须配置 12–128 字符的管理员密码。推荐在本机仓库目录新建不提交版本控制的 `.env`：
 
@@ -63,10 +63,12 @@ npm run dev
 
 ## 安全说明
 
-本版本新增单管理员登录、服务端会话和 CSRF 请求头检查，但**仍不属于公开部署就绪版本**。Docker 提供的是 Vite 开发服务器，不应当暴露公网。
+本项目提供**两套独立的 Compose**：`compose.yaml` 仅用于开发，`compose.production.yaml` 使用静态前端 + Caddy HTTPS，并在 Docker 内网访问 Go API。
 
-正式 HTTPS 反向代理部署时必须设置 `SESSION_SECURE=true` 以启用 Secure Cookie，同时配置 TLS、访问限制、静态前端构建、密码恢复机制和异地备份。不要依赖环境变量自动更改已存在的管理员密码。
+生产配置已加入自动 TLS、强制 Secure Cookie、只读容器根目录、数据库快照与 Restic 异地加密备份脚本。**配置具备生产部署基础，但正式面向公网使用前仍需完成真实域名/TLS 验证、密码恢复流程、异地恢复演练和安全检查。**
+
+详细步骤：[正式部署与异地备份](docs/DEPLOYMENT.md)。
 
 主动推送默认关闭；请在服务端环境变量中配置渠道，详见 [通知部署说明](docs/NOTIFICATIONS.md)。当前不会在网页中保存推送密钥。
 
-接口文档见 `docs/API.md` 和 `docs/FINANCE.md`，开源协议 MIT。
+生产部署见 [DEPLOYMENT.md](docs/DEPLOYMENT.md)，接口文档见 `docs/API.md` 和 `docs/FINANCE.md`，开源协议 MIT。

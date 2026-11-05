@@ -30,6 +30,10 @@ Manage recurring services, VPS subscriptions, domains, and other upcoming renewa
 - Storage: SQLite (WAL mode)
 - Deployment: Docker Compose for local development
 
+## Deployment
+
+For public deployment use the dedicated [production Compose and HTTPS guide](docs/DEPLOYMENT.md). It builds static Vue assets and serves them through Caddy; the Go API is internal-only. An optional encrypted off-site Restic backup workflow is included. This is a production candidate requiring validation of real DNS/TLS, disaster recovery, security and provider credentials before broad public use.
+
 ## Quick start
 
 ### Docker Compose (recommended)
@@ -93,7 +97,7 @@ See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Security
 
-The API requires administrator authentication, but the Docker Compose frontend is still a development Vite server. **Do not expose it publicly.** Configure SESSION_SECURE=true behind HTTPS, and maintain off-site backups. Back up the database before upgrade or removal. Avoid storing API secrets in notes.
+The standard `compose.yaml` frontend is a **development Vite server**: do not expose it publicly. Use `compose.production.yaml` and follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for production-style static hosting, automatic HTTPS, protected API and optional encrypted off-site backup. Back up the database before upgrade or removal. Avoid storing API secrets in notes.
 
 ## License
 
