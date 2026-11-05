@@ -156,3 +156,50 @@ func (s *Store) ListRenewals(ctx context.Context, itemID int64, limit int) ([]Re
 	}
 	return out, rows.Err()
 }
+
+
+// UndoRenewal removes the latest settlement link but preserves the actual payment.
+// It restores the pending due date only when the current schedule still matches
+// the settlement's result; editing a schedule must not be silently overwritten.
+func (s *Store) UndoRenewal(ctx context.Context, itemID, renewalID int64) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var due, next string
+	err = tx.QueryRowContext(ctx, "SELECT due_date,next_due_date FROM item_renewals WHERE id=? AND item_id=?",
+		renewalID, itemID).Scan(&due, &next)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	var lastID int64
+	if err := tx.QueryRowContext(ctx,
+		"SELECT id FROM item_renewals WHERE item_id=? ORDER BY id DESC LIMIT 1", itemID).Scan(&lastID); err != nil {
+		return err
+	}
+	if lastID != renewalID {
+		return ErrConflict
+	}
+	var current string
+	var completed bool
+	err = tx.QueryRowContext(ctx,
+		"SELECT due_date,completed FROM item_renewal_state WHERE item_id=?", itemID).Scan(&current, &completed)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if err == nil && (current == next && next != "" && !completed ||
+		next == "" && current == due && completed) {
+		if _, err := tx.ExecContext(ctx, `UPDATE item_renewal_state SET due_date=?, completed=0,
+			updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE item_id=?`, due, itemID); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM item_renewals WHERE id=? AND item_id=?", renewalID, itemID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
