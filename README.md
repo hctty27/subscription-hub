@@ -17,8 +17,10 @@ Manage recurring services, VPS subscriptions, domains, and other upcoming renewa
 - Data persistence through a Docker volume
 - Actual payment ledger (CRUD) and six-month currency-separated expense reports
 - Idempotent in-app renewal reminders, configurable 0–30 days ahead
+- Single-admin Argon2id login, HTTP-only sessions, protected API
+- Daily consistent SQLite backup snapshots (retains 7) and manual backup
 
-**Not implemented yet:** authentication, external notification delivery (email/Bark/Telegram), refunds, currency exchange, backups, AI, MCP. This is a **local-development preview**, not suitable for public internet access.
+**Not implemented yet:** external notification delivery (email/Bark/Telegram), refunds, currency exchange, password reset, off-site backups, AI, MCP. This is a **local-development preview**, not suitable for public internet access.
 
 ## Technology
 
@@ -32,6 +34,8 @@ Manage recurring services, VPS subscriptions, domains, and other upcoming renewa
 ### Docker Compose (recommended)
 
 ```bash
+printf 'ADMIN_PASSWORD=replace-with-a-strong-random-password\\n' > .env
+# .env is ignored by Git
 docker compose up --build
 ```
 
@@ -70,6 +74,10 @@ Configuration:
 
 The Docker Compose backend binds to `0.0.0.0` **inside the container**, but is published on `127.0.0.1` on the Docker host.
 
+## Authentication
+
+On first start set a strong ADMIN_PASSWORD (12–128 characters). Existing passwords are stored as Argon2id hashes in SQLite. Changing ADMIN_PASSWORD after setup does not reset the password. See [docs/SECURITY.md](docs/SECURITY.md).
+
 ## API
 
 See [docs/API.md](docs/API.md) for catalog endpoints, and [docs/FINANCE.md](docs/FINANCE.md) for payments, reports and in-app reminders.
@@ -80,7 +88,7 @@ See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Security
 
-The API has **no authentication**. Do **not** expose port 8080 or the frontend proxy to untrusted networks. Back up the database before upgrade or removal. Avoid storing API secrets in notes.
+The API requires administrator authentication, but the Docker Compose frontend is still a development Vite server. **Do not expose it publicly.** Configure SESSION_SECURE=true behind HTTPS, and maintain off-site backups. Back up the database before upgrade or removal. Avoid storing API secrets in notes.
 
 ## License
 
