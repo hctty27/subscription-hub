@@ -39,7 +39,7 @@ interface Item {
 type ItemDraft = Omit<Item, 'id' | 'next_due_date' | 'days_until' | 'amount_minor'>
 
 const page = ref<Page>('overview')
-const pendingPaymentItemID = ref<number | null>(null)
+const initialDetailPaymentID = ref<number | null>(null)
 const showAdvanced = ref(false)
 const ledgerRefreshKey = ref(0)
 const categories = ref<Category[]>([])
@@ -248,17 +248,19 @@ function openEdit(item: Item) {
 }
 
 function openDetails(item: Item) {
+  initialDetailPaymentID.value = null
   selectedItem.value = item
 }
 
 function editFromDetails(item: Item) {
   selectedItem.value = null
+  initialDetailPaymentID.value = null
   openEdit(item)
 }
 
 function recordPayment(item: Item) {
-  pendingPaymentItemID.value = item.id
-  navigate('payments')
+  selectedItem.value = item
+  initialDetailPaymentID.value = item.id
 }
 
 async function saveItem() {
@@ -381,6 +383,7 @@ async function logout() {
     categories.value = []
     page.value = 'overview'
     selectedItem.value = null
+    initialDetailPaymentID.value = null
     monthExpenses.value = []
   } catch (reason) {
     error.value = messageOf(reason)
@@ -465,8 +468,7 @@ onMounted(checkLogin)
         <button type="button" :class="{ active: page === 'reminders' }" @click="navigate('reminders')">到期提醒</button>
       </nav>
       <LedgerWorkspace v-if="page === 'payments' || page === 'reports' || page === 'reminders'"
-        :key="page + ':' + ledgerRefreshKey" :page="page" :initial-payment-item-id="pendingPaymentItemID"
-        @payment-intent-consumed="pendingPaymentItemID = null" />
+        :key="page + ':' + ledgerRefreshKey" :page="page" />
       <section v-if="page === 'overview'" class="metrics" aria-label="概览指标">
         <div class="metric">
           <span>活跃订阅</span>
@@ -675,7 +677,8 @@ onMounted(checkLogin)
     </nav>
 
     <ItemDetails v-if="selectedItem" :item="selectedItem" :categories="categories"
-      @close="selectedItem = null" @edit="editFromDetails"
+      :start-with-payment="initialDetailPaymentID === selectedItem.id"
+      @close="selectedItem = null; initialDetailPaymentID = null" @edit="editFromDetails"
       @payment-created="loadMonthExpenses" />
 
     <div v-if="showEditor" class="modal-backdrop" @click.self="showEditor = false">
