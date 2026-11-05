@@ -19,8 +19,9 @@ Manage recurring services, VPS subscriptions, domains, and other upcoming renewa
 - Idempotent in-app renewal reminders, configurable 0–30 days ahead
 - Single-admin Argon2id login, HTTP-only sessions, protected API
 - Daily consistent SQLite backup snapshots (retains 7) and manual backup
+- Optional SMTP, Telegram and Bark notification delivery with durable retry status and delivery logs
 
-**Not implemented yet:** external notification delivery (email/Bark/Telegram), refunds, currency exchange, password reset, off-site backups, AI, MCP. This is a **local-development preview**, not suitable for public internet access.
+**Not implemented yet:** refunds, currency exchange, password reset, off-site backups, AI, MCP. This is a **local-development preview**, not suitable for public internet access.
 
 ## Technology
 
@@ -77,6 +78,10 @@ The Docker Compose backend binds to `0.0.0.0` **inside the container**, but is p
 ## Authentication
 
 On first start set a strong ADMIN_PASSWORD (12–128 characters). Existing passwords are stored as Argon2id hashes in SQLite. Changing ADMIN_PASSWORD after setup does not reset the password. See [docs/SECURITY.md](docs/SECURITY.md).
+
+## Notifications
+
+All external channels are disabled by default. Configure SMTP, Telegram Bot, or Bark in the server environment; delivery credentials are never returned by the API. See [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md). Failed deliveries are retried up to four attempts.
 
 ## API
 

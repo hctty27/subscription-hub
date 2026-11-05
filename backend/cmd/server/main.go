@@ -12,6 +12,7 @@ import (
 
 	"github.com/hctty27/subscription-hub/backend/internal/httpapi"
 	"github.com/hctty27/subscription-hub/backend/internal/auth"
+	"github.com/hctty27/subscription-hub/backend/internal/notify"
 	"github.com/hctty27/subscription-hub/backend/internal/reminder"
 	"github.com/hctty27/subscription-hub/backend/internal/store"
 )
@@ -45,11 +46,15 @@ func main() {
 	workerContext,cancelWorker:=context.WithCancel(context.Background())
 	defer cancelWorker()
 	go startBackupWorker(workerContext,repo,backupDir,loc)
-	go reminder.Start(workerContext, repo, loc)
+	sender,err:=notify.FromEnv()
+	if err!=nil{log.Fatalf("通知渠道配置无效：%v",err)}
+	dispatcher:=&notify.Dispatcher{Repo:repo,Sender:sender,Location:loc}
+	log.Printf("外部通知渠道：%s",notify.DeliverySummary(sender.Channels()))
+	go reminder.Start(workerContext, repo, loc, dispatcher)
 
 	server := &http.Server{
 		Addr:              host + ":" + port,
-		Handler:           httpapi.NewRouter(repo, loc, security, backupDir),
+		Handler:           httpapi.NewRouter(repo, loc, security, backupDir, dispatcher),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,

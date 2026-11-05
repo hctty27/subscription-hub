@@ -12,6 +12,7 @@
 - 到期站内提醒、规则和幂等去重
 - 单管理员密码登录与 HttpOnly 会话（Argon2id）
 - 每天 03:00 自动创建 SQLite 一致性备份，默认保留最近 7 份；支持登录后手动备份
+- SMTP、Telegram Bot、Bark 主动通知适配器；SQLite 持久化投递、最多 4 次尝试及发送日志
 
 ## 首次启动
 
@@ -66,6 +67,6 @@ npm run dev
 
 正式 HTTPS 反向代理部署时必须设置 `SESSION_SECURE=true` 以启用 Secure Cookie，同时配置 TLS、访问限制、静态前端构建、密码恢复机制和异地备份。不要依赖环境变量自动更改已存在的管理员密码。
 
-外部邮件、Telegram、Bark 主动推送、失败重试和发送日志仍在后续阶段。
+主动推送默认关闭；请在服务端环境变量中配置渠道，详见 [通知部署说明](docs/NOTIFICATIONS.md)。当前不会在网页中保存推送密钥。
 
 接口文档见 `docs/API.md` 和 `docs/FINANCE.md`，开源协议 MIT。
