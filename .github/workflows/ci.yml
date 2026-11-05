@@ -92,10 +92,8 @@ jobs:
   production-smoke:
     runs-on: ubuntu-latest
     env:
-      APP_DOMAIN: ":80"
       ADMIN_PASSWORD: ci-prod-long-password-123
       HTTP_BIND: "127.0.0.1:18080"
-      HTTPS_BIND: "127.0.0.1:18443"
       RESTIC_REPOSITORY: /repo
       RESTIC_PASSWORD: ci-restic-backup-password
       SUBSCRIPTION_ENV_FILE: .env.production.example
@@ -108,8 +106,10 @@ jobs:
           sh -n scripts/smoke-production.sh
       - name: Build and start production containers
         run: docker compose --env-file .env.production.example -f compose.production.yaml up -d --build
-      - name: Verify static frontend, API, login and CSRF
-        run: sh scripts/smoke-production.sh
+      - name: Verify Nginx configuration, frontend, API, login and CSRF
+        run: |
+          docker compose --env-file .env.production.example -f compose.production.yaml exec -T web nginx -t
+          sh scripts/smoke-production.sh
       - name: Verify SQLite snapshot and encrypted Restic backup
         run: |
           docker compose --env-file .env.production.example -f compose.production.yaml exec -T api /app/backup
