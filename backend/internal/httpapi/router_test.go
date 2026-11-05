@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/hctty27/subscription-hub/backend/internal/store"
+	"github.com/hctty27/subscription-hub/backend/internal/auth"
 )
 
 func testRouter(t *testing.T) (http.Handler, *store.Store, string) {
@@ -20,7 +21,7 @@ func testRouter(t *testing.T) (http.Handler, *store.Store, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { repo.Close() })
-	return NewRouter(repo, time.UTC), repo, path
+	return authenticatedRouter(t,repo), repo, path
 }
 
 func request(t *testing.T, router http.Handler, method, path string, body any, status int) map[string]any {
@@ -35,6 +36,7 @@ func request(t *testing.T, router http.Handler, method, path string, body any, s
 	}
 	req := httptest.NewRequest(method, path, bytes.NewReader(data))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-CSRF-Token", "1")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	if rec.Code != status {
@@ -109,9 +111,9 @@ func TestCatalogCRUDAndPersistence(t *testing.T) {
 		t.Fatal("返回的主键不合法")
 	}
 
-	request(t, NewRouter(reopened, time.UTC), "DELETE", "/api/v1/items/1", nil, http.StatusNoContent)
-	request(t, NewRouter(reopened, time.UTC), "DELETE", "/api/v1/categories/1", nil, http.StatusNoContent)
-	request(t, NewRouter(reopened, time.UTC), "GET", "/api/v1/items/1", nil, http.StatusNotFound)
+	request(t, authenticatedRouter(t,reopened), "DELETE", "/api/v1/items/1", nil, http.StatusNoContent)
+	request(t, authenticatedRouter(t,reopened), "DELETE", "/api/v1/categories/1", nil, http.StatusNoContent)
+	request(t, authenticatedRouter(t,reopened), "GET", "/api/v1/items/1", nil, http.StatusNotFound)
 }
 
 func TestItemValidation(t *testing.T) {
@@ -139,4 +141,29 @@ func TestItemValidation(t *testing.T) {
 	body["first_due_date"] = "2026-02-30"
 	request(t, router, "POST", "/api/v1/items", body, http.StatusBadRequest)
 	request(t, router, "GET", "/api/v1/items?limit=999999", nil, http.StatusBadRequest)
+}
+
+type authTestHandler struct {
+ server http.Handler
+ cookie *http.Cookie
+}
+func (h *authTestHandler) ServeHTTP(w http.ResponseWriter,r *http.Request){
+ r.AddCookie(h.cookie)
+ h.server.ServeHTTP(w,r)
+}
+func authenticatedRouter(t *testing.T,repo *store.Store) http.Handler {
+ t.Helper()
+ security,err:=auth.New(t.Context(),repo,"test-admin-password-123",false)
+ if err!=nil{t.Fatal(err)}
+ server:=NewRouter(repo,time.UTC,security,filepath.Join(t.TempDir(),"backups"))
+ body:=bytes.NewBufferString(`{"password":"test-admin-password-123"}`)
+ req:=httptest.NewRequest("POST","/api/v1/auth/login",body)
+ req.Header.Set("Content-Type","application/json")
+ req.Header.Set("X-CSRF-Token","1")
+ recorder:=httptest.NewRecorder()
+ server.ServeHTTP(recorder,req)
+ if recorder.Code!=200 {t.Fatalf("测试认证失败：%s",recorder.Body.String())}
+ cookies:=recorder.Result().Cookies()
+ if len(cookies)!=1 {t.Fatal("缺少登录 Cookie")}
+ return &authTestHandler{server:server,cookie:cookies[0]}
 }

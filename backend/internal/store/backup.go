@@ -56,8 +56,24 @@ func pruneBackups(dir string,retain int)error{
     }
   }
   sort.Sort(sort.Reverse(sort.StringSlice(names)))
+  if len(names)<=retain { return nil }
   for _,name:=range names[retain:] {
     if err:=os.Remove(filepath.Join(dir,name));err!=nil{return err}
   }
   return nil
+}
+
+func ListBackups(dir string)([]BackupFile,error){
+  entries,err:=os.ReadDir(dir)
+  if os.IsNotExist(err){return []BackupFile{},nil}
+  if err!=nil{return nil,err}
+  result:=make([]BackupFile,0)
+  for _,e:=range entries{
+    if e.IsDir()||!strings.HasPrefix(e.Name(),"subscription-hub-")||!strings.HasSuffix(e.Name(),".db"){continue}
+    info,err:=e.Info()
+    if err!=nil{return nil,err}
+    result=append(result,BackupFile{File:e.Name(),Size:info.Size(),CreatedAt:info.ModTime().UTC().Format(time.RFC3339)})
+  }
+  sort.Slice(result,func(i,j int)bool{return result[i].File>result[j].File})
+  return result,nil
 }
