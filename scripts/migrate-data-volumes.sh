@@ -71,7 +71,7 @@ if docker volume inspect "$old_volume" >/dev/null 2>&1; then
     --mount "type=bind,source=$destination,target=/to" \
     alpine:3.22 sh -eu -c '
       cp -a /from/. /to/
-      chown 10001:10001 /to
+      chown -R 10001:10001 /to
       chmod 750 /to
     '
   echo "复制完成。旧命名卷保持原样，验证成功前请勿删除。"
