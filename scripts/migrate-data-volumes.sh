@@ -40,7 +40,16 @@ if docker volume inspect "$old_volume" >/dev/null 2>&1; then
   echo "发现旧命名卷：$old_volume"
 
   if [ "$mode" = production ]; then
-    container_id="$(sh scripts/compose-prod.sh ps -q api)"
+    env_file="${SUBSCRIPTION_ENV_FILE:-.env.production}"
+    if [ ! -f "$env_file" ]; then
+      echo "找不到 $env_file，无法安全停止旧生产 API。" >&2
+      exit 1
+    fi
+    if [ -n "${COMPOSE_FILE:-}" ]; then
+      container_id="$(docker compose --env-file "$env_file" ps -q api)"
+    else
+      container_id="$(docker compose --env-file "$env_file" -f compose.production.yaml ps -q api)"
+    fi
   else
     container_id="$(docker compose -f compose.yaml ps -q backend)"
   fi
@@ -52,7 +61,11 @@ if docker volume inspect "$old_volume" >/dev/null 2>&1; then
 
   echo "停止旧应用的数据库写入..."
   if [ "$mode" = production ]; then
-    sh scripts/compose-prod.sh stop api
+    if [ -n "${COMPOSE_FILE:-}" ]; then
+      docker compose --env-file "$env_file" stop api
+    else
+      docker compose --env-file "$env_file" -f compose.production.yaml stop api
+    fi
   else
     docker compose -f compose.yaml stop backend
   fi
