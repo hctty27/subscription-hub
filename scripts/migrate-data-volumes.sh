@@ -29,7 +29,7 @@ if [ -d "$destination" ]; then
   # 容器可能以 UID 10001 拥有目录；通过 Docker 检查，任何检查失败都视为不安全。
   if ! docker run --rm \
     --mount "type=bind,source=$destination,target=/check,readonly" \
-    alpine:3.22 sh -eu -c 'test -z "$(find /check -mindepth 1 -print -quit)"'; then
+    alpine:3.22 sh -eu -c 'first="$(find /check -mindepth 1 -print -quit)"; test -z "$first"'; then
     echo "目标目录非空或无法读取，禁止覆盖：$destination" >&2
     echo "请先确认现有数据、备份和旧命名卷的内容，勿直接删除任何数据库。" >&2
     exit 1
