@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/hctty27/subscription-hub/backend/internal/httpapi"
 	"github.com/hctty27/subscription-hub/backend/internal/store"
